@@ -1,0 +1,120 @@
+import { useEffect, useMemo, useState } from 'react';
+import type { Operation, Task } from '../../../shared/contracts';
+import { ensureOperation, localDateTime, needsEnsure, organize, today, addDays } from '../../../shared/domain';
+import { enqueue, loadDraft, materialize, resolveConflict, type Account, type EditorDraft } from '../../data/store';
+import { TaskEditor } from './TaskEditor';
+
+const groupNames = { urgent: '优先关注', todayPending: '今日待办', todayCompleted: '今日完成', others: '其他安排' };
+const recurrenceNames = { DAILY: '每日', WEEKLY: '每周', MONTHLY: '每月' };
+const groupKeys = ['urgent', 'todayPending', 'todayCompleted', 'others'] as const;
+function TaskSummary({ task, zone, name }: { task: Task | null; zone: string; name: (id: string) => string }) {
+  if (!task) return <p>云端尚无此任务。</p>;
+  return <><p><strong>{task.title}</strong></p><p>{task.note || '无备注'}</p>
+    <p>归属：{name(task.ownerId)} · {task.isArchived ? '已归档' : task.isPinned ? '已置顶' : '普通任务'}</p>
+    <p>开始：{task.recurrenceStart} · {task.recurrence ? recurrenceNames[task.recurrence] : '不重复'}</p>
+    <p>截止：{task.dueAt === null ? '未设置' : localDateTime(task.dueAt, zone).replace('T', ' ')}</p>
+    <p>最后修改：{name(task.updatedBy)} · {localDateTime(task.updatedAt, zone).replace('T', ' ')}</p>
+    <details><summary>查看各次完成状态</summary>{task.occurrences.map(o => <p key={o.id}>{o.plannedDate} · {o.status === 'COMPLETED' ? '已完成' : o.status === 'SKIPPED' ? '已跳过' : '待办'}</p>)}</details></>;
+}
+export function TasksPage({ account, sync, onEditing }: { account: Account; sync: () => void; onEditing: (value: boolean) => void }) {
+  const { identity } = account, userId = identity.user.id, zone = identity.timeZone;
+  const [date, setDate] = useState(() => today(zone));
+  const [filter, setFilter] = useState('all');
+  const [archived, setArchived] = useState(false);
+  const [editor, setEditor] = useState<EditorDraft | null>(null);
+  const [resume, setResume] = useState<EditorDraft | null>(null);
+  const [error, setError] = useState('');
+  const tasks = useMemo(() => materialize(account), [account]);
+  const visible = tasks.filter(t => filter === 'all' || (filter === 'mine' ? t.ownerId === userId : t.ownerId !== userId));
+  const groups = organize(visible, date, zone);
+  const ownerName = (id: string) => identity.members.find(m => m.id === id)?.name ?? '成员';
+  useEffect(() => { let active = true; void loadDraft(userId).then(value => { if (active) setResume(value ?? null); }).catch(() => setError('无法读取本地草稿'));
+    return () => { active = false; }; }, [userId, editor]);
+  useEffect(() => {
+    onEditing(editor !== null);
+    return () => onEditing(false);
+  }, [editor, onEditing]);
+  useEffect(() => {
+    let cancelled = false;
+    async function generate() {
+      let changed = false;
+      for (const task of tasks) {
+        if (cancelled) return;
+        if (!account.conflicts[task.id] && needsEnsure(task, date)) {
+          await enqueue(userId, task.id, ensureOperation(date)); changed = true;
+        }
+      }
+      if (changed) sync();
+    }
+    void generate().catch(e => setError(e instanceof Error ? e.message : '任务实例生成失败'));
+    return () => { cancelled = true; };
+  }, [tasks, account.conflicts, date, userId, sync]);
+
+  async function act(taskId: string, operation: Operation) {
+    try { await enqueue(userId, taskId, operation, tasks.find(task => task.id === taskId)?.version); setError(''); sync(); }
+    catch (e) { setError(e instanceof Error ? e.message : '操作失败'); }
+  }
+  function edit(task?: Task) {
+    if (resume) { setEditor(resume); return; }
+    setEditor({ taskId: task?.id ?? crypto.randomUUID(), existing: !!task, baselineVersion: task?.version ?? 0, draft: task ? {
+      title: task.title, note: task.note, dueAt: task.dueAt, isPinned: task.isPinned,
+      recurrence: task.recurrence, recurrenceStart: task.recurrenceStart, ownerId: task.ownerId,
+    } : { title: '', note: '', dueAt: null, isPinned: false, recurrence: null, recurrenceStart: date, ownerId: userId } });
+  }
+  const progress = tasks.flatMap(t => t.isArchived ? [] : t.occurrences.filter(o => o.plannedDate === date));
+  const completed = progress.filter(o => o.status === 'COMPLETED').length;
+  return <>
+    <section className="hero"><div><p className="eyebrow">A LITTLE PLAN, A BETTER DAY</p><h1>慢慢来，<br />把日子过好。</h1><p className="muted">属于两个人的日常，每件小事都算数。</p></div>
+      <div className="progress-orbit" aria-label={`今日已完成 ${completed} 项，共 ${progress.length} 项`}><span className="sprout">✳</span><strong>{completed}<small> / {progress.length}</small></strong><span>今日已完成</span></div></section>
+    <div className="toolbar"><div className="date-controls"><button className="icon-button" aria-label="前一天" onClick={() => setDate(addDays(date, -1))}>‹</button>
+      <input aria-label="查看日期" type="date" value={date} onChange={e => { if (e.target.value) setDate(e.target.value); }} />
+      <button className="icon-button" aria-label="后一天" onClick={() => setDate(addDays(date, 1))}>›</button>
+      <button className="text-button" onClick={() => setDate(today(zone))}>今天</button></div>
+      <button className="primary desktop-add" onClick={() => edit()}>记一件事<span>＋</span></button></div>
+    <div className="filter-row"><div className="segmented" aria-label="任务归属筛选">{[['all', '全部'], ['mine', '我的'], ['other', '对方的']].map(([value, label]) =>
+      <button key={value} aria-pressed={filter === value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)}>{label}</button>)}</div>
+      <button className="text-button" aria-pressed={archived} onClick={() => setArchived(!archived)}>{archived ? '返回待办' : '查看归档'}</button></div>
+    {resume && !editor && <div className="notice">有一份未保存的任务草稿。<button className="text-button" onClick={() => setEditor(resume)}>继续编辑 ↗</button></div>}
+    {error && <p className="notice error-text" role="alert">{error}</p>}
+    {Object.entries(account.conflicts).map(([taskId, conflict]) => {
+      const local = tasks.find(t => t.id === taskId);
+      return <section className="conflict" key={taskId} role="alert"><p className="eyebrow">需要你来决定</p><h3>「{local?.title}」有不同版本</h3><p>{conflict.message}</p>
+        <div className="compare"><div><strong>本机内容</strong><TaskSummary task={local ?? null} zone={zone} name={ownerName} /></div><div><strong>云端内容</strong><TaskSummary task={conflict.current} zone={zone} name={ownerName} /></div></div>
+        <div className="actions"><button onClick={async () => { await resolveConflict(userId, taskId, 'cloud'); sync(); }}>采用云端，放弃本机修改</button>
+          <button onClick={async () => { try { await resolveConflict(userId, taskId, 'local'); setError(''); sync(); } catch (e) { setError(e instanceof Error ? e.message : '无法重新提交，请采用云端后重新编辑'); } }}>
+            {conflict.current && !conflict.current.isArchived ? '重新提交本机修改' : '将本机内容另存为新任务'}</button></div>
+        <p className="hint">重新提交只重放本机操作；云端已归档时另建任务，不恢复原任务。</p></section>;
+    })}
+    {archived ? <section className="task-section"><div className="section-heading"><h2>已归档</h2><span>{visible.filter(t => t.isArchived).length} 件事</span></div>
+      {visible.filter(t => t.isArchived).map(t => <article className="task-card" key={t.id}><div><h3>{t.title}</h3><p className="muted">{ownerName(t.ownerId)} · 已归档</p></div></article>)}
+      {!visible.some(t => t.isArchived) && <p className="empty">还没有归档的任务。</p>}</section>
+      : groupKeys.map(key => <section className="task-section" key={key}>
+        <div className="section-heading"><h2><span className={`section-dot ${key}`} />{groupNames[key]}</h2><span>{groups[key].length.toString().padStart(2, '0')}</span></div>
+        {groups[key].map(({ task, occurrence }) => <article className={`task-card ${occurrence?.status === 'COMPLETED' ? 'is-done' : ''}`} key={task.id}>
+          <button className="completion" disabled={!occurrence || !!account.conflicts[task.id]} aria-label={occurrence?.status === 'COMPLETED' ? `恢复待办：${task.title}` : `完成：${task.title}`}
+            onClick={() => occurrence && void act(task.id, { type: 'status', date: occurrence.plannedDate, status: occurrence.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED' })}>
+            {occurrence?.status === 'COMPLETED' ? '✓' : ''}</button>
+          <div className="task-body"><div className="task-title-row"><button className="task-title" onClick={() => edit(task)} disabled={!!account.conflicts[task.id]}>{task.title}</button>
+            {task.isPinned && <span className="pin-label">置顶</span>}</div>
+            {task.note && <p className="task-note">{task.note}</p>}
+            <div className="metadata"><span className={`owner ${task.ownerId === userId ? '' : 'other'}`}>{ownerName(task.ownerId)}</span>
+              {task.recurrence && <span>↻ {recurrenceNames[task.recurrence]}</span>}
+              {(occurrence?.dueAt ?? task.dueAt) !== null && <span>截止 {localDateTime((occurrence?.dueAt ?? task.dueAt)!, zone).replace('T', ' ')}</span>}
+              {occurrence && <span>{occurrence.plannedDate}</span>}
+              {account.pending.some(p => p.command.taskId === task.id) && <span>待同步</span>}</div>
+            <details className="task-details"><summary>操作与记录</summary><div className="actions">
+              <button disabled={!!account.conflicts[task.id]} onClick={() => edit(task)}>编辑 / 转交</button>
+              <button onClick={() => void act(task.id, { type: 'pin', pinned: !task.isPinned })}>{task.isPinned ? '取消置顶' : '置顶'}</button>
+              {occurrence?.status === 'PENDING' && <button onClick={() => void act(task.id, { type: 'status', date: occurrence.plannedDate, status: 'SKIPPED' })}>跳过本次</button>}
+              <button onClick={() => { if (window.confirm(`归档「${task.title}」？归档后将从待办隐藏。`)) void act(task.id, { type: 'archive' }); }}>归档</button></div>
+              <p className="hint">创建：{ownerName(task.createdBy)} · 最后修改：{ownerName(task.updatedBy)}</p>
+              {task.occurrences.filter(o => o.status !== 'PENDING').map(o => <div className="history-row" key={o.id}><span>{o.plannedDate} · {o.status === 'SKIPPED' ? '已跳过' : '已完成'}</span>
+                <button className="text-button" onClick={() => void act(task.id, { type: 'status', date: o.plannedDate, status: 'PENDING' })}>恢复待办</button></div>)}
+            </details></div>
+        </article>)}
+        {!groups[key].length && <p className="empty">{key === 'todayCompleted' ? '完成的小事，会在这里慢慢积累。' : '这里暂时没有安排，留一点空白也很好。'}</p>}
+      </section>)}
+    <button className="primary mobile-add" onClick={() => edit()}>＋ 记一件事</button>
+    {editor && <TaskEditor key={editor.taskId} identity={identity} initial={editor} onClose={() => setEditor(null)} onSaved={sync} />}
+  </>;
+}

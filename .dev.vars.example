@@ -1,0 +1,7 @@
+# Copy to .dev.vars. Use a separate GitHub OAuth App for localhost.
+APP_ORIGIN=http://127.0.0.1:5173
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+# Exactly two distinct numeric IDs, not usernames.
+ALLOWED_GITHUB_IDS=
+APP_TIME_ZONE=Asia/Shanghai
