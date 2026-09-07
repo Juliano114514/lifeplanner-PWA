@@ -1,6 +1,8 @@
 import type { Identity, Snapshot, Task } from '../../shared/contracts';
 import { api, ApiFailure } from './api';
 import { acknowledge, mergeSnapshot, readAccount, saveIdentity, updateAccount } from './store';
+import { acknowledgePlanner, mergePlanner } from './store';
+import type { PlannerData } from '../../shared/planner';
 
 const running = new Map<string, Promise<void>>();
 export function synchronize(id: string): Promise<void> {
@@ -43,6 +45,28 @@ export function synchronize(id: string): Promise<void> {
     }
     const snapshot = await api<Snapshot>('/api/v1/tasks/snapshot');
     await mergeSnapshot(id, snapshot.tasks);
+    const plannerInitial = await readAccount(id);
+    for (const pending of plannerInitial?.plannerPending ?? []) {
+      const account = await readAccount(id);
+      const command = account?.plannerPending.find(value => value.command.mutationId === pending.command.mutationId)?.command;
+      if (!command || account?.plannerConflict) continue;
+      try {
+        const result = await api<{ planner: PlannerData }>('/api/v1/planner/commands', command, id);
+        await acknowledgePlanner(id, command.mutationId, result.planner);
+      } catch (error) {
+        if (error instanceof ApiFailure && error.detail.error === 'VERSION_CONFLICT') {
+          await updateAccount(id, state => {
+            if (state.plannerPending.some(value => value.command.mutationId === command.mutationId)) {
+              state.plannerConflict = { current: error.detail.current as unknown as PlannerData, message: error.message };
+            }
+          });
+          break;
+        }
+        throw error;
+      }
+    }
+    const plannerSnapshot = await api<{ planner: PlannerData }>('/api/v1/planner/snapshot');
+    await mergePlanner(id, plannerSnapshot.planner);
   };
   const promise = (navigator.locks ? navigator.locks.request(`lifeplanner-sync-${id}`, run) : run())
     .finally(() => running.delete(id));

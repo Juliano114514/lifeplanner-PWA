@@ -2,9 +2,14 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import type { Identity } from '../../shared/contracts';
 import { api, ApiFailure } from '../data/api';
-import { cachedAccount, readAccount, saveIdentity, subscribe, type Account } from '../data/store';
+import { cachedAccount, readAccount, resolvePlannerConflict, saveIdentity, subscribe, type Account } from '../data/store';
 import { synchronize } from '../data/sync';
 const TasksPage = lazy(() => import('../features/tasks/TasksPage').then(module => ({ default: module.TasksPage })));
+const SchedulePage = lazy(() => import('../features/schedule/SchedulePage').then(module => ({ default: module.SchedulePage })));
+const DiaryPage = lazy(() => import('../features/diary/DiaryPage').then(module => ({ default: module.DiaryPage })));
+const DishesPage = lazy(() => import('../features/inventory/InventoryPages').then(module => ({ default: module.DishesPage })));
+const InventoryPage = lazy(() => import('../features/inventory/InventoryPages').then(module => ({ default: module.InventoryPage })));
+const ShoppingPage = lazy(() => import('../features/inventory/InventoryPages').then(module => ({ default: module.ShoppingPage })));
 
 const tabs = [
   { path: 'tasks', label: '任务', icon: '✓' }, { path: 'schedule', label: '日程', icon: '▦' },
@@ -89,6 +94,11 @@ export function App() {
       window.location.assign('/tasks');
     } catch { setMessage('退出需要联网，以便注销服务端会话。本机待同步内容会保留。'); }
   }
+  async function choosePlannerConflict(choice: 'cloud' | 'local') {
+    if (!id) return;
+    try { await resolvePlannerConflict(id, choice); setMessage(''); syncNow(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : '无法处理生活记录冲突，请先采用云端再重新编辑。'); }
+  }
   const authError = new URLSearchParams(window.location.search).get('authError');
   return <div className="app-layout"><aside className="sidebar"><NavLink to="/tasks" className="brand"><img src="/icon.svg" alt="" /><span>LifePlanner<small>两个人的日常</small></span></NavLink>
     <nav aria-label="主要导航">{tabs.map(tab => <NavLink key={tab.path} to={`/${tab.path}`}><span aria-hidden="true">{tab.icon}</span>{tab.label}</NavLink>)}</nav>
@@ -104,15 +114,20 @@ export function App() {
             <div className="install-tip"><strong>随手可用，像一个 App</strong><p>在 iPhone Safari 中点“分享”，选择“添加到主屏幕”。</p></div>
           </section> : <>
             <div className="sync-strip" role="status"><span className={`status-dot ${!online || reauth ? 'offline' : ''}`} />
-              <span>{!online ? '离线 · 修改保存在本机' : reauth ? '请重新登录 · 本机修改已保留' : busy ? '正在同步…' : account.pending.length ? `${account.pending.length} 项修改待同步` : account.lastSync ? `已同步 · ${new Date(account.lastSync).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}` : '等待首次同步'}</span>
+              <span>{!online ? '离线 · 修改保存在本机' : reauth ? '请重新登录 · 本机修改已保留' : busy ? '正在同步…' : account.pending.length + account.plannerPending.length ? `${account.pending.length + account.plannerPending.length} 项修改待同步` : account.lastSync ? `已同步 · ${new Date(account.lastSync).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}` : '等待首次同步'}</span>
               {reauth ? <a href="/api/auth/github/login">重新登录 ↗</a> : <button className="text-button" disabled={busy || !online} onClick={syncNow}>↻ 同步</button>}</div>
             {message && <p role="alert" className="notice">{message}</p>}
             {waiting && <div className="notice">新版本已准备好，草稿和待同步内容会保留。<button className="text-button" disabled={editing} onClick={() => {
               navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload(), { once: true });
               waiting.postMessage({ type: 'ACTIVATE' });
             }}>{editing ? '关闭编辑页后更新' : '更新应用'}</button></div>}
-            <Suspense fallback={<p className="empty">正在打开任务…</p>}><Routes><Route path="/tasks" element={<TasksPage key={id} account={account} sync={syncNow} onEditing={setEditing} />} />
-              {tabs.slice(1).map(tab => <Route key={tab.path} path={`/${tab.path}`} element={<section className="placeholder"><span className="placeholder-icon">{tab.icon}</span><p className="eyebrow">ONE STEP AT A TIME</p><h1>{tab.label}，接下来见。</h1><p>这个模块尚未实现。<br />后续将按安卓现有功能接入共享空间。</p><NavLink className="primary" to="/tasks">先安排一件小事<span>↗</span></NavLink></section>} />)}
+            {account.plannerConflict && <section className="conflict" role="alert"><p className="eyebrow">需要你来决定</p><h3>共享生活记录有不同版本</h3><p>{account.plannerConflict.message}</p><p className="hint">日程、日记、菜品、库存和采购属于同一原子版本；任务不受这次选择影响。</p><div className="actions"><button onClick={() => void choosePlannerConflict('cloud')}>采用云端，放弃本机修改</button><button onClick={() => void choosePlannerConflict('local')}>在云端最新版上重放本机修改</button></div></section>}
+            <Suspense fallback={<p className="empty">正在打开生活计划…</p>}><Routes><Route path="/tasks" element={<TasksPage key={id} account={account} sync={syncNow} onEditing={setEditing} />} />
+              <Route path="/schedule" element={<SchedulePage account={account} sync={syncNow} onEditing={setEditing} />} />
+              <Route path="/diary" element={<DiaryPage account={account} sync={syncNow} onEditing={setEditing} />} />
+              <Route path="/dishes" element={<DishesPage account={account} sync={syncNow} onEditing={setEditing} />} />
+              <Route path="/inventory" element={<InventoryPage account={account} sync={syncNow} onEditing={setEditing} />} />
+              <Route path="/shopping" element={<ShoppingPage account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="*" element={<Navigate to="/tasks" replace />} /></Routes></Suspense>
           </>}
       </main><footer className="page-footer">LifePlanner <span>·</span> 留一点时间，好好生活。</footer></div>

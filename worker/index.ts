@@ -1,6 +1,7 @@
 import { authRoute, identity } from './auth';
 import { config, HttpError, json, type Env } from './http';
 import { tasksRoute } from './tasks';
+import { plannerRoute } from './planner';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -12,7 +13,7 @@ export default {
       if (auth) return auth;
       const person = await identity(request, env);
       if (path === '/api/v1/me' && request.method === 'GET') return json(person);
-      return await tasksRoute(request, env, person) ?? json({ error: 'NOT_FOUND', message: '接口不存在' }, 404);
+      return await tasksRoute(request, env, person) ?? await plannerRoute(request, env, person) ?? json({ error: 'NOT_FOUND', message: '接口不存在' }, 404);
     } catch (error) {
       if (error instanceof HttpError) return json({ error: error.code, message: error.message }, error.status);
       // Never log OAuth payloads, session tokens, diary/task content or raw D1 errors.

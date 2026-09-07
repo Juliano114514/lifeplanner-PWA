@@ -14,6 +14,11 @@ try { insert.run('stale', 'member-b', 'hash2', 'task-a', 0, '{"version":1}', 2);
 if (!rejected || db.prepare('SELECT COUNT(*) AS n FROM mutations').get().n !== 1 || db.prepare('SELECT version FROM tasks').get().version !== 1) throw new Error('Revision guard did not roll back atomically');
 insert.run('second', 'member-b', 'hash3', 'task-a', 1, '{"version":2}', 3);
 if (db.prepare('SELECT version FROM tasks').get().version !== 2) throw new Error('Revision update failed');
+const plannerInsert = db.prepare('INSERT INTO planner_mutations VALUES (?, ?, ?, ?, ?, ?)');
+plannerInsert.run('planner-first', 'member-a', 'hash4', 0, '{"version":1}', 4);
+let plannerRejected = false;
+try { plannerInsert.run('planner-stale', 'member-b', 'hash5', 0, '{"version":1}', 5); } catch { plannerRejected = true; }
+if (!plannerRejected || db.prepare("SELECT version FROM planner_state WHERE space_id = 'shared'").get().version !== 1) throw new Error('Planner revision guard failed');
 if (db.prepare('PRAGMA foreign_key_check').all().length) throw new Error('Foreign key check failed');
 db.close();
 console.log('SQL migrations, integrity, atomic revision rejection and update: passed (in-memory SQLite).');

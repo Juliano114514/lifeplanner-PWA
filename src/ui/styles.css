@@ -261,17 +261,18 @@ main {
   align-items:center;
   justify-content:center;
   gap:28px;
-  background:var(--accent);
-  border-radius:var(--radius-sm);
+  background:var(--accent-dark);
+  color:white;
+  border-radius:var(--radius-control);
   padding:12px 22px;
   min-height:48px;
   font-weight:650;
-  box-shadow:0 3px 0 #8eaf67;
+  box-shadow:0 4px 0 var(--accent-deep);
   transition:transform .12s,box-shadow .12s
 }
 .primary:active {
-  transform:translateY(3px);
-  box-shadow:0 0 0 #8eaf67
+  transform:translateY(4px);
+  box-shadow:0 0 0 var(--accent-deep)
 }
 .primary>span {
   font-size:20px
@@ -874,9 +875,516 @@ main {
     font-size:10px
   }
 }
+
+@media(prefers-color-scheme:dark) {
+  :root {
+    --canvas:#101512;
+    --sidebar:#151d18;
+    --paper:#1b241e;
+    --surface-soft:#263229;
+    --accent:#24553a;
+    --accent-dark:#9bd6ae;
+    --accent-deep:#4d8b64;
+    --secondary-soft:#29444e;
+    --warning-soft:#5b431d;
+    --error-soft:#5b2524;
+    --ink:#e4eee7;
+    --muted:#aebbb2;
+    --line:#344139;
+    color-scheme:dark
+  }
+  .primary {
+    color:#07391f
+  }
+  .date-strip button.selected {
+    color:#07391f
+  }
+  .secondary {
+    color:#d8ecf3
+  }
+  .editor input:not([type=checkbox]),.editor select,.editor textarea,.planner-dialog input:not([type=range]),.planner-dialog textarea,.diary-text textarea,.inline-editor input {
+    background:var(--paper);
+    border-color:var(--line)
+  }
+  .notice {
+    background:#302e21;
+    border-color:#4a4731
+  }
+  .conflict {
+    background:#2e271b;
+    border-color:#715c37
+  }
+  .compare>div {
+    background:#211d17
+  }
+  .owner {
+    background:#263b2d;
+    color:#b8d8c0
+  }
+  .owner.other {
+    background:#453326;
+    color:#e0b995
+  }
+  .sidebar {
+    background:var(--sidebar)
+  }
+}
 @media(prefers-reduced-motion:reduce) {
   * {
     scroll-behavior:auto!important;
     transition:none!important
+  }
+}
+
+/* Shared Android-aligned feature language. */
+.page-heading {
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:24px;
+  padding:18px 0 24px;
+  border-bottom:1px solid var(--line)
+}
+.page-heading .eyebrow {
+  margin-bottom:5px
+}
+.page-heading h1 {
+  font-size:28px;
+  line-height:36px;
+  letter-spacing:-.7px
+}
+.heading-actions,.page-actions,.badge-row {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px
+}
+.page-actions {
+  justify-content:flex-end;
+  margin:12px 0
+}
+.secondary {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:48px;
+  padding:0 18px;
+  border-radius:var(--radius-control);
+  background:var(--secondary-soft);
+  color:#163c48;
+  font-weight:700
+}
+.full {
+  width:100%
+}
+.date-navigator {
+  border-bottom:1px solid var(--line);
+  padding:18px 0 8px
+}
+.date-strip {
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:8px
+}
+.date-strip button {
+  min-width:0;
+  min-height:84px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  border:1px solid transparent;
+  border-radius:20px
+}
+.date-strip button.today:not(.selected) {
+  border:3px solid #aab3ad
+}
+.date-strip button.selected {
+  background:var(--accent-dark);
+  color:white
+}
+.date-strip small,.date-strip span {
+  font-size:10px
+}
+.date-strip strong {
+  font-size:20px;
+  line-height:24px
+}
+.date-strip i {
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:#b8c0ba;
+  margin-top:3px
+}
+.date-strip i.recorded {
+  background:var(--accent-dark)
+}
+.date-strip button.selected i {
+  visibility:hidden
+}
+.date-nav-actions {
+  display:flex;
+  justify-content:space-between;
+  align-items:center
+}
+.date-nav-actions label {
+  font-size:0;
+  color:var(--muted)
+}
+.date-nav-actions input {
+  border:0;
+  background:transparent;
+  width:48px;
+  color:transparent
+}
+.badge {
+  display:inline-flex;
+  align-items:center;
+  min-height:26px;
+  border-radius:8px;
+  padding:2px 9px;
+  background:var(--surface-soft);
+  color:var(--muted);
+  font-size:11px;
+  font-weight:700
+}
+.badge.success {
+  background:var(--accent);
+  color:#074e2a
+}
+.badge.warning {
+  background:var(--warning-soft);
+  color:#5a3c00
+}
+.badge.error {
+  background:var(--error-soft);
+  color:#8c1111
+}
+.planner-dialog label,.diary-text {
+  display:flex;
+  flex-direction:column;
+  gap:7px
+}
+.planner-dialog label {
+  margin:16px 0;
+  font-size:12px;
+  font-weight:650
+}
+.planner-dialog input:not([type=range]),.planner-dialog textarea,.diary-text textarea,.inline-editor input {
+  width:100%;
+  min-height:48px;
+  border:1px solid #cdd8d0;
+  border-radius:12px;
+  background:white;
+  padding:11px 12px;
+  outline-color:var(--accent-dark);
+  resize:vertical
+}
+.planner-dialog.wide {
+  width:min(680px,calc(100vw - 24px))
+}
+.planner-dialog fieldset {
+  border:0;
+  padding:0;
+  margin:18px 0
+}
+.planner-dialog legend {
+  margin-bottom:8px;
+  font-size:12px;
+  font-weight:700
+}
+.choice-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px
+}
+.choice-grid.three {
+  grid-template-columns:repeat(3,minmax(0,1fr))
+}
+.choice-grid.four {
+  grid-template-columns:repeat(4,minmax(0,1fr))
+}
+.choice-chip {
+  min-height:48px;
+  border:1px solid var(--line);
+  border-radius:var(--radius-control);
+  background:var(--paper);
+  padding:8px 12px
+}
+.choice-chip.selected {
+  border:2px solid var(--accent-dark);
+  background:var(--accent);
+  color:#083f24;
+  font-weight:700
+}
+.danger-text {
+  min-height:48px;
+  padding:0 12px;
+  color:var(--error);
+  font-weight:700
+}
+.timeline {
+  margin:16px 0 44px
+}
+.timeline-row {
+  display:grid;
+  grid-template-columns:58px minmax(0,1fr);
+  gap:8px;
+  padding:4px 0
+}
+.timeline-row>time {
+  padding-top:13px;
+  color:var(--muted);
+  font-size:12px;
+  font-weight:650
+}
+.timeline-slot {
+  min-height:52px;
+  display:grid;
+  gap:8px
+}
+.timeline-empty {
+  width:100%;
+  min-height:48px;
+  border-radius:16px;
+  background:#e9efea66
+}
+.timeline-empty:hover {
+  background:var(--surface-soft)
+}
+.schedule-card {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  padding:8px 12px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:var(--paper)
+}
+.completion.compact {
+  width:40px;
+  height:40px;
+  min-width:40px;
+  min-height:40px
+}
+.schedule-body,.card-main {
+  flex:1;
+  min-width:0;
+  min-height:48px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:center;
+  text-align:left
+}
+.schedule-body strong,.card-main strong {
+  font-size:15px
+}
+.schedule-body span,.card-main span {
+  color:var(--muted);
+  font-size:12px;
+  white-space:normal
+}
+.wizard-progress {
+  height:8px;
+  overflow:hidden;
+  border-radius:99px;
+  background:var(--surface-soft);
+  margin:18px 0
+}
+.wizard-progress span {
+  display:block;
+  height:100%;
+  border-radius:99px;
+  background:var(--accent-dark);
+  transition:width .18s
+}
+.wizard-title {
+  font-size:28px;
+  margin-bottom:20px
+}
+.period-planner {
+  display:grid;
+  gap:12px
+}
+.period-planner article {
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--paper);
+  padding:12px
+}
+.planner-dialog .period-toggle {
+  flex-direction:row;
+  align-items:center;
+  margin:0 0 10px;
+  font-size:15px
+}
+.planner-dialog .period-toggle input {
+  width:22px;
+  min-height:22px;
+  accent-color:var(--accent-dark)
+}
+.period-planner>article>input {
+  margin:10px 0
+}
+.diary-section,.diary-text {
+  margin:24px 0
+}
+.inline-editor {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px;
+  margin:10px 0
+}
+.diary-entries {
+  border-top:1px solid var(--line)
+}
+.diary-entries button {
+  width:100%;
+  min-height:52px;
+  display:grid;
+  grid-template-columns:24px minmax(0,1fr) auto;
+  align-items:center;
+  gap:8px;
+  border-bottom:1px solid var(--line);
+  text-align:left;
+  border-radius:0
+}
+.diary-entries button>span {
+  color:var(--accent-dark)
+}
+.diary-entries button p {
+  overflow-wrap:anywhere
+}
+.diary-entries button small {
+  color:var(--muted);
+  font-size:10px
+}
+.compact-empty {
+  padding:12px
+}
+.tonal-card {
+  border-radius:var(--radius);
+  background:var(--surface-soft);
+  padding:16px;
+  margin-top:16px
+}
+.tonal-card p {
+  margin-top:8px;
+  white-space:pre-wrap
+}
+.card-list {
+  display:grid;
+  gap:12px;
+  margin:24px 0 48px
+}
+.content-card {
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--paper);
+  padding:16px
+}
+.card-title-row,.shopping-card {
+  display:flex;
+  align-items:flex-start;
+  gap:8px
+}
+.feature-empty {
+  min-height:320px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  color:var(--muted)
+}
+.feature-empty>span {
+  width:72px;
+  height:72px;
+  display:grid;
+  place-items:center;
+  border-radius:28px;
+  background:var(--accent);
+  color:var(--accent-dark);
+  font-size:32px;
+  margin-bottom:16px
+}
+.feature-empty h2 {
+  color:var(--ink);
+  margin-bottom:6px
+}
+.back-link {
+  display:inline-flex;
+  align-items:center;
+  margin-top:12px
+}
+.task-group {
+  display:contents
+}
+.schedule-task-card {
+  align-items:center
+}
+
+@media(max-width:640px) {
+  .page-heading {
+    padding:12px 0 16px;
+    align-items:center
+  }
+  .page-heading h1 {
+    font-size:24px;
+    line-height:32px
+  }
+  .page-heading .primary,.page-heading .secondary {
+    width:54px;
+    min-width:54px;
+    padding:0;
+    overflow:hidden;
+    color:transparent;
+    gap:0
+  }
+  .page-heading .primary span {
+    color:white;
+    font-size:22px
+  }
+  .heading-actions {
+    flex-wrap:nowrap
+  }
+  .heading-actions .secondary {
+    display:none
+  }
+  .date-strip {
+    gap:3px
+  }
+  .date-strip button {
+    min-height:78px;
+    border-radius:18px
+  }
+  .timeline-row {
+    grid-template-columns:47px minmax(0,1fr)
+  }
+  .schedule-card {
+    flex-wrap:wrap
+  }
+  .schedule-card .badge-row {
+    width:100%;
+    padding-left:48px
+  }
+  .choice-grid.four {
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+  .diary-entries button {
+    grid-template-columns:22px minmax(0,1fr)
+  }
+  .diary-entries button small {
+    display:none
+  }
+  .inline-editor {
+    grid-template-columns:minmax(0,1fr)
+  }
+  .inline-editor .secondary {
+    justify-self:end
   }
 }

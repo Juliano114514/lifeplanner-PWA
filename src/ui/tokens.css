@@ -1,15 +1,23 @@
 :root {
-  --canvas:#f7f9f4;
-  --sidebar:#f0f4e9;
+  --canvas:#f7f9f7;
+  --sidebar:#eef5ef;
   --paper:#fff;
-  --surface-soft:#edf1e7;
-  --accent:#c6ee98;
-  --accent-dark:#68844b;
-  --ink:#293326;
-  --muted:#808976;
-  --line:#e3e8dc;
-  --radius:16px;
-  --radius-sm:10px;
+  --surface-soft:#e9efea;
+  --accent:#b7f4cf;
+  --accent-dark:#167a45;
+  --accent-deep:#0b5c32;
+  --secondary:#3b6473;
+  --secondary-soft:#d6e5ea;
+  --warning:#805600;
+  --warning-soft:#ffdea1;
+  --error:#ba1a1a;
+  --error-soft:#ffdad6;
+  --ink:#18251d;
+  --muted:#66736a;
+  --line:#dbe4dc;
+  --radius:20px;
+  --radius-sm:12px;
+  --radius-control:16px;
   --font:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
   color-scheme:light
 }

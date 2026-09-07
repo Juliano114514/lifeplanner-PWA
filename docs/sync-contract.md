@@ -21,7 +21,7 @@
 
 `GET /api/auth/github/login` → GitHub → `GET /api/auth/github/callback`。OAuth state 绑定 HttpOnly Cookie 和一次性数据库记录，有效期 10 分钟；使用 S256 PKCE。成功回调写入 30 天有效的随机会话，数据库只保存会话 token 的 SHA-256。GitHub access token 仅用于本次查询身份，不下发给客户端或存储。
 
-`POST /api/auth/logout` 注销当前会话。所有写 API 要求 `Origin` 等于 `APP_ORIGIN`；任务写请求还要求 `X-LifePlanner-Actor` 等于当前登录用户 ID，用于阻止浏览器账号切换竞态。生产 Cookie 为 Secure、HttpOnly、SameSite=Lax，作用域 `/`。HTTP 只允许本地开发 origin。
+`POST /api/auth/logout` 注销当前会话。所有写 API 要求 `Origin` 等于 `APP_ORIGIN`；任务与生活数据写请求还要求 `X-LifePlanner-Actor` 等于当前登录用户 ID，用于阻止浏览器账号切换竞态。生产 Cookie 为 Secure、HttpOnly、SameSite=Lax，作用域 `/`。HTTP 只允许本地开发 origin。
 
 ## 任务模型
 
@@ -90,9 +90,17 @@ D1 中 `mutations` INSERT 触发版本校验和任务 UPSERT；该语句失败�
 
 其他错误：`400 INVALID_COMMAND / INVALID_OPERATION / INVALID_OWNER`、`401 UNAUTHENTICATED / ACCOUNT_CHANGED`、`403 ORIGIN_REJECTED`、`409 MUTATION_ID_REUSED`、`413 TOO_LARGE`、`415 JSON_REQUIRED`、`503 NOT_CONFIGURED`、`500 SERVER_ERROR`。错误不包含原始 SQL、密钥或 GitHub 载荷。API 响应均 `Cache-Control: no-store`。
 
+## 日程、日记、库存与采购聚合
+
+`GET /api/v1/planner/snapshot` 返回 `{ planner, serverTime }`。`planner` 包含 `version`、`schedules`、`diaryDays`、`stocks` 和 `shopping`。这些数据属于一个共享聚合，以保证一次库存购买可同时更新采购状态和库存余量、一次日记保存可同时更新条目和正文。
+
+`POST /api/v1/planner/commands` 接受 `{ mutationId, expectedVersion, operation }`。操作包括日程保存/完成/归档、整日日记保存、库存保存/更新/归档、采购添加/移除/完成。成功返回 `{ planner }`；版本冲突返回当前完整聚合。D1 的 `planner_mutations` INSERT 通过触发器校验版本并原子更新 `planner_state`，幂等语义与任务命令一致。
+
+生活数据使用整聚合版本，因此不同设备同时修改不同生活模块也可能冲突。这是当前小规模双人空间的保守一致性选择；冲突页会整体采用云端，或在云端最新版本上按序重放本机命令。任务仍使用独立的逐任务版本，不被生活数据冲突阻塞。
+
 ## 离线与冲突
 
-IndexedDB 的 account 分区包括服务端基线、按序命令、每条命令的本机预览、冲突及最后同步时间；编辑草稿另存并保留编辑开始时的版本。保存表单使用这个旧版本做校验，不会因后台拉取较新数据而自动取得覆盖权限。新增命令与预览保存于同一事务。
+IndexedDB 的 account 分区分别保存任务与生活数据的服务端基线、按序命令、每条命令的本机预览、冲突及最后同步时间；任务编辑草稿另存并保留编辑开始时的版本。保存表单使用编辑开始时的旧版本做校验，不会因后台拉取较新数据而自动取得覆盖权限。新增命令与预览保存于同一事务。
 
 网络同步先确认当前身份，再按序上传当前队列快照。浏览器 Web Locks 协调多个页签；服务端版本和幂等检查仍为最终保护。确认响应后移除对应命令，未知结果或网络错误保留原 mutation ID 重试。
 

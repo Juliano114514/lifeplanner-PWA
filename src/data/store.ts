@@ -1,12 +1,16 @@
 import { openDB, type DBSchema } from 'idb';
 import type { Command, Identity, Operation, Task, TaskDraft } from '../../shared/contracts';
 import { applyCommand } from '../../shared/domain';
+import { applyPlannerCommand, emptyPlanner, type PlannerCommand, type PlannerData, type PlannerOperation } from '../../shared/planner';
 
 export interface Pending { command: Command; at: number; preview: Task }
 export interface Conflict { current: Task | null; message: string }
+export interface PlannerPending { command: PlannerCommand; at: number; preview: PlannerData }
+export interface PlannerConflict { current: PlannerData; message: string }
 export interface Account {
   identity: Identity; base: Task[]; pending: Pending[];
-  conflicts: Record<string, Conflict>; lastSync: number | null;
+  conflicts: Record<string, Conflict>; plannerBase: PlannerData; plannerPending: PlannerPending[];
+  plannerConflict: PlannerConflict | null; lastSync: number | null;
 }
 export interface EditorDraft { taskId: string; existing: boolean; baselineVersion: number; draft: TaskDraft }
 interface Database extends DBSchema {
@@ -24,10 +28,15 @@ export function subscribe(listener: () => void): () => void {
   return () => events.removeEventListener('change', listener);
 }
 function notify() { events.dispatchEvent(new Event('change')); channel?.postMessage('changed'); }
-export const readAccount = async (id: string) => (await database).get('accounts', id);
+function normalizeAccount(account: Account | undefined): Account | undefined {
+  if (!account) return undefined;
+  return { ...account, plannerBase: account.plannerBase ?? emptyPlanner(), plannerPending: account.plannerPending ?? [],
+    plannerConflict: account.plannerConflict ?? null };
+}
+export const readAccount = async (id: string) => normalizeAccount(await (await database).get('accounts', id));
 export async function updateAccount(id: string, change: (account: Account) => void): Promise<void> {
   const db = await database, tx = db.transaction('accounts', 'readwrite');
-  const account = await tx.store.get(id);
+  const account = normalizeAccount(await tx.store.get(id));
   if (!account) { await tx.done; throw new Error('本地账号数据不可用，请重新登录'); }
   change(account);
   await tx.store.put(account, id);
@@ -37,7 +46,8 @@ export async function updateAccount(id: string, change: (account: Account) => vo
 export async function saveIdentity(identity: Identity): Promise<void> {
   const db = await database, tx = db.transaction('accounts', 'readwrite');
   const old = await tx.store.get(identity.user.id);
-  await tx.store.put(old ? { ...old, identity } : { identity, base: [], pending: [], conflicts: {}, lastSync: null }, identity.user.id);
+  await tx.store.put(old ? { ...normalizeAccount(old)!, identity } : { identity, base: [], pending: [], conflicts: {},
+    plannerBase: emptyPlanner(), plannerPending: [], plannerConflict: null, lastSync: null }, identity.user.id);
   await tx.done;
   localStorage.setItem('lp-account', identity.user.id);
   notify();
@@ -115,6 +125,54 @@ export async function resolveConflict(id: string, taskId: string, choice: 'cloud
       const command = { ...pending.command, mutationId: crypto.randomUUID(), expectedVersion: current?.version ?? 0 };
       current = applyCommand(current, command, id, account.identity.timeZone, Date.now());
       account.pending.push({ command, at: Date.now(), preview: current });
+    }
+  });
+}
+export function materializePlanner(account: Account): PlannerData {
+  let planner = structuredClone(account.plannerBase ?? emptyPlanner());
+  for (const pending of account.plannerPending ?? []) {
+    try { planner = applyPlannerCommand(planner, pending.command, account.identity.user.id, pending.at); }
+    catch { planner = structuredClone(pending.preview); }
+  }
+  return planner;
+}
+export async function enqueuePlanner(id: string, operation: PlannerOperation): Promise<void> {
+  await updateAccount(id, account => {
+    if (account.plannerConflict) throw new Error('请先处理共享生活记录的同步冲突');
+    const current = materializePlanner(account);
+    const command: PlannerCommand = { mutationId: crypto.randomUUID(), expectedVersion: current.version, operation };
+    const at = Date.now(), preview = applyPlannerCommand(current, command, id, at);
+    account.plannerPending.push({ command, at, preview });
+  });
+}
+export async function acknowledgePlanner(id: string, mutationId: string, planner: PlannerData): Promise<void> {
+  await updateAccount(id, account => {
+    if (!account.plannerPending.some(value => value.command.mutationId === mutationId)) return;
+    account.plannerPending = account.plannerPending.filter(value => value.command.mutationId !== mutationId);
+    account.plannerBase = planner;
+  });
+}
+export async function mergePlanner(id: string, planner: PlannerData): Promise<void> {
+  await updateAccount(id, account => {
+    if (!account.plannerPending.length && !account.plannerConflict && account.plannerBase.version <= planner.version) account.plannerBase = planner;
+    account.lastSync = Date.now();
+  });
+}
+export async function resolvePlannerConflict(id: string, choice: 'cloud' | 'local'): Promise<void> {
+  await updateAccount(id, account => {
+    const conflict = account.plannerConflict;
+    if (!conflict) return;
+    const old = account.plannerPending;
+    account.plannerPending = [];
+    account.plannerBase = conflict.current;
+    account.plannerConflict = null;
+    if (choice === 'cloud') return;
+    let current = structuredClone(conflict.current);
+    for (const pending of old) {
+      const command: PlannerCommand = { ...pending.command, mutationId: crypto.randomUUID(), expectedVersion: current.version };
+      const at = Date.now();
+      current = applyPlannerCommand(current, command, id, at);
+      account.plannerPending.push({ command, at, preview: current });
     }
   });
 }

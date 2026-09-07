@@ -1,8 +1,8 @@
 # LifePlanner PWA
 
-面向两个固定用户的中文生活计划本。React PWA 提供 iPhone 主屏幕入口，Cloudflare Workers 提供同域 API，D1 保存共享任务，IndexedDB 保存本机数据、编辑草稿和待同步操作。
+面向两个固定用户的中文生活计划本。React PWA 提供 iPhone 主屏幕入口，Cloudflare Workers 提供同域 API，D1 保存共享生活数据，IndexedDB 保存本机数据、编辑草稿和待同步操作。
 
-**当前交付：五个导航入口 + 完整任务模块。** 日程、日记、菜品、库存页面明确显示尚未实现。Android 仍为本地应用，本仓库尚未使 Android 自动联网或同步。
+**当前交付：五个导航入口均为可用功能。** 任务、日程/快速安排、日记、菜品、库存与采购都使用离线优先的双人共享数据；欢迎页与 GitHub 登录入口保留。Android 仍为本地应用，本仓库尚未使 Android 自动联网或同步。
 
 ## 最短开始
 
@@ -35,6 +35,10 @@ APP_TIME_ZONE=Asia/Shanghai
 ## 当前功能与数据
 
 - 两人都能查看、编辑、置顶、完成、跳过、恢复待办、归档及转交任务。
+- 日程提供五日日期导航、24 小时时间轴、增删改、完成状态、时间冲突提示、任务关联和八步快速安排；向导最后一步可创建当日待办。
+- 日记按日期保存开心/不开心条目与完整正文，条目可改类型、修改或删除，整页一次原子保存。
+- 菜品记录熟食/食材、余量、存放位置、保质期和临期提示；库存支持数量、百分比、状态三种记录方式和低库存提醒。
+- 采购清单会从低库存自动生成，也支持手动添加、移除、完成及购入量回写。
 - 新建任务默认归属本人；任务分别记录归属人、不可变创建人、最后修改人。
 - 对齐 Android 的任务分组、三天内截止提醒、每日/每周/月末重复规则及未来待办重建行为。
 - “全部 / 我的 / 对方的”筛选；每条任务的“操作与记录”内可恢复已完成或已跳过的实例。
@@ -151,15 +155,19 @@ PWA 的后台运行由系统管理，本应用不承诺关闭后持续同步。�
 
 ```text
 src/app/             应用布局、登录状态、路由、同步触发、应用更新
-src/features/tasks/  任务列表、编辑、归属筛选、冲突展示
+src/features/tasks/  任务列表、编辑、归属筛选、今日日程与冲突展示
+src/features/schedule/ 日程时间轴与八步快速安排
+src/features/diary/  按日期的条目与完整日记
+src/features/inventory/ 菜品、库存与统一采购清单
+src/features/planner/ 非任务功能共用 UI
 src/data/            API、IndexedDB、离线队列、同步协调
 src/ui/              样式与 UI token
-shared/              请求校验、公共类型、前后端共用任务规则
-worker/              OAuth、会话、任务 API
+shared/              请求校验、公共类型、任务与生活数据共用规则
+worker/              OAuth、会话、任务与生活数据 API
 migrations/          D1 版本迁移
 docs/                API、Android 接入及验收说明
 ```
 
-API 和 Android 字段映射见 [同步契约](docs/sync-contract.md)。先接入 Android 登录与任务同步、旧数据上传，再依次实现日程/快速安排、日记、菜品、库存与采购。现有 Android 仓库本轮没有修改。
+API 和 Android 字段映射见 [同步契约](docs/sync-contract.md)。Android 接入仍需实现原生登录、稳定 UUID 映射与旧数据上传；现有 Android 仓库本轮没有修改。
 
 参考：[Cloudflare React 部署](https://developers.cloudflare.com/workers/framework-guides/web-apps/react/)、[D1 命令](https://developers.cloudflare.com/d1/wrangler-commands/)、[GitHub OAuth](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)、[WebKit 存储策略](https://webkit.org/blog/14403/updates-to-storage-policy/)。

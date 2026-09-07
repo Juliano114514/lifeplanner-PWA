@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Operation, Task } from '../../../shared/contracts';
-import { ensureOperation, localDateTime, needsEnsure, organize, today, addDays } from '../../../shared/domain';
-import { enqueue, loadDraft, materialize, resolveConflict, type Account, type EditorDraft } from '../../data/store';
+import { ensureOperation, localDateTime, needsEnsure, organize, today } from '../../../shared/domain';
+import { enqueue, enqueuePlanner, loadDraft, materialize, materializePlanner, resolveConflict, type Account, type EditorDraft } from '../../data/store';
+import { Badge, formatMinute, PageHeading } from '../planner/PlannerUi';
 import { TaskEditor } from './TaskEditor';
 
-const groupNames = { urgent: '优先关注', todayPending: '今日待办', todayCompleted: '今日完成', others: '其他安排' };
+const groupNames = { urgent: '置顶 / 临近 DDL', todayPending: '今日未完成', todayCompleted: '今日已完成', others: '其他任务' };
 const recurrenceNames = { DAILY: '每日', WEEKLY: '每周', MONTHLY: '每月' };
 const groupKeys = ['urgent', 'todayPending', 'todayCompleted', 'others'] as const;
 function TaskSummary({ task, zone, name }: { task: Task | null; zone: string; name: (id: string) => string }) {
@@ -18,7 +20,7 @@ function TaskSummary({ task, zone, name }: { task: Task | null; zone: string; na
 }
 export function TasksPage({ account, sync, onEditing }: { account: Account; sync: () => void; onEditing: (value: boolean) => void }) {
   const { identity } = account, userId = identity.user.id, zone = identity.timeZone;
-  const [date, setDate] = useState(() => today(zone));
+  const date = today(zone), navigate = useNavigate();
   const [filter, setFilter] = useState('all');
   const [archived, setArchived] = useState(false);
   const [editor, setEditor] = useState<EditorDraft | null>(null);
@@ -28,6 +30,9 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
   const visible = tasks.filter(t => filter === 'all' || (filter === 'mine' ? t.ownerId === userId : t.ownerId !== userId));
   const groups = organize(visible, date, zone);
   const ownerName = (id: string) => identity.members.find(m => m.id === id)?.name ?? '成员';
+  const schedules = materializePlanner(account).schedules.filter(value => value.date === date && !value.isArchived);
+  const pendingSchedules = schedules.filter(value => value.status !== 'COMPLETED').sort((a, b) => a.startMinute - b.startMinute);
+  const completedSchedules = schedules.filter(value => value.status === 'COMPLETED').sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
   useEffect(() => { let active = true; void loadDraft(userId).then(value => { if (active) setResume(value ?? null); }).catch(() => setError('无法读取本地草稿'));
     return () => { active = false; }; }, [userId, editor]);
   useEffect(() => {
@@ -61,16 +66,17 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
       recurrence: task.recurrence, recurrenceStart: task.recurrenceStart, ownerId: task.ownerId,
     } : { title: '', note: '', dueAt: null, isPinned: false, recurrence: null, recurrenceStart: date, ownerId: userId } });
   }
-  const progress = tasks.flatMap(t => t.isArchived ? [] : t.occurrences.filter(o => o.plannedDate === date));
-  const completed = progress.filter(o => o.status === 'COMPLETED').length;
+  async function toggleSchedule(id: string, completed: boolean) {
+    const block = schedules.find(value => value.id === id), status = completed ? 'PENDING' : 'COMPLETED';
+    try {
+      await enqueuePlanner(userId, { type: 'scheduleStatus', id, status });
+      if (block?.taskId && block.occurrenceDate) await enqueue(userId, block.taskId, { type: 'status', date: block.occurrenceDate, status });
+      setError(''); sync();
+    }
+    catch (reason) { setError(reason instanceof Error ? reason.message : '日程操作失败'); }
+  }
   return <>
-    <section className="hero"><div><p className="eyebrow">A LITTLE PLAN, A BETTER DAY</p><h1>慢慢来，<br />把日子过好。</h1><p className="muted">属于两个人的日常，每件小事都算数。</p></div>
-      <div className="progress-orbit" aria-label={`今日已完成 ${completed} 项，共 ${progress.length} 项`}><span className="sprout">✳</span><strong>{completed}<small> / {progress.length}</small></strong><span>今日已完成</span></div></section>
-    <div className="toolbar"><div className="date-controls"><button className="icon-button" aria-label="前一天" onClick={() => setDate(addDays(date, -1))}>‹</button>
-      <input aria-label="查看日期" type="date" value={date} onChange={e => { if (e.target.value) setDate(e.target.value); }} />
-      <button className="icon-button" aria-label="后一天" onClick={() => setDate(addDays(date, 1))}>›</button>
-      <button className="text-button" onClick={() => setDate(today(zone))}>今天</button></div>
-      <button className="primary desktop-add" onClick={() => edit()}>记一件事<span>＋</span></button></div>
+    <PageHeading title="任务计划" action={<button className="primary desktop-add" onClick={() => edit()}>新增任务<span>＋</span></button>} />
     <div className="filter-row"><div className="segmented" aria-label="任务归属筛选">{[['all', '全部'], ['mine', '我的'], ['other', '对方的']].map(([value, label]) =>
       <button key={value} aria-pressed={filter === value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)}>{label}</button>)}</div>
       <button className="text-button" aria-pressed={archived} onClick={() => setArchived(!archived)}>{archived ? '返回待办' : '查看归档'}</button></div>
@@ -88,8 +94,12 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
     {archived ? <section className="task-section"><div className="section-heading"><h2>已归档</h2><span>{visible.filter(t => t.isArchived).length} 件事</span></div>
       {visible.filter(t => t.isArchived).map(t => <article className="task-card" key={t.id}><div><h3>{t.title}</h3><p className="muted">{ownerName(t.ownerId)} · 已归档</p></div></article>)}
       {!visible.some(t => t.isArchived) && <p className="empty">还没有归档的任务。</p>}</section>
-      : groupKeys.map(key => <section className="task-section" key={key}>
+      : groupKeys.map(key => <div className="task-group" key={key}>{key === 'todayCompleted' && pendingSchedules.length > 0 && <section className="task-section"><div className="section-heading"><h2>今日日程</h2><span>{pendingSchedules.length}</span></div>
+        {pendingSchedules.map(block => <article className="task-card schedule-task-card" key={block.id}><button className="completion" onClick={() => void toggleSchedule(block.id, false)} aria-label={`完成日程：${block.title}`} />
+          <button className="task-body card-main" onClick={() => navigate(`/schedule?date=${date}`)}><strong>{block.title}</strong><span>{formatMinute(block.startMinute)}–{formatMinute(block.endMinute)}</span>{block.note && <p>{block.note}</p>}</button><Badge>{block.taskId ? '任务' : block.source === 'QUICK_PLAN' ? '快速安排' : '手动'}</Badge></article>)}</section>}
+        <section className="task-section">
         <div className="section-heading"><h2><span className={`section-dot ${key}`} />{groupNames[key]}</h2><span>{groups[key].length.toString().padStart(2, '0')}</span></div>
+        {key === 'todayCompleted' && completedSchedules.map(block => <article className="task-card schedule-task-card is-done" key={block.id}><button className="completion" onClick={() => void toggleSchedule(block.id, true)} aria-label={`恢复日程：${block.title}`}>✓</button><button className="task-body card-main" onClick={() => navigate(`/schedule?date=${date}`)}><strong>{block.title}</strong><span>{formatMinute(block.startMinute)}–{formatMinute(block.endMinute)}</span></button><Badge tone="success">已完成</Badge></article>)}
         {groups[key].map(({ task, occurrence }) => <article className={`task-card ${occurrence?.status === 'COMPLETED' ? 'is-done' : ''}`} key={task.id}>
           <button className="completion" disabled={!occurrence || !!account.conflicts[task.id]} aria-label={occurrence?.status === 'COMPLETED' ? `恢复待办：${task.title}` : `完成：${task.title}`}
             onClick={() => occurrence && void act(task.id, { type: 'status', date: occurrence.plannedDate, status: occurrence.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED' })}>
@@ -105,6 +115,7 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
             <details className="task-details"><summary>操作与记录</summary><div className="actions">
               <button disabled={!!account.conflicts[task.id]} onClick={() => edit(task)}>编辑 / 转交</button>
               <button onClick={() => void act(task.id, { type: 'pin', pinned: !task.isPinned })}>{task.isPinned ? '取消置顶' : '置顶'}</button>
+              {occurrence && <button onClick={() => navigate(`/schedule?date=${occurrence.plannedDate}&task=${task.id}`)}>安排</button>}
               {occurrence?.status === 'PENDING' && <button onClick={() => void act(task.id, { type: 'status', date: occurrence.plannedDate, status: 'SKIPPED' })}>跳过本次</button>}
               <button onClick={() => { if (window.confirm(`归档「${task.title}」？归档后将从待办隐藏。`)) void act(task.id, { type: 'archive' }); }}>归档</button></div>
               <p className="hint">创建：{ownerName(task.createdBy)} · 最后修改：{ownerName(task.updatedBy)}</p>
@@ -112,9 +123,9 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
                 <button className="text-button" onClick={() => void act(task.id, { type: 'status', date: o.plannedDate, status: 'PENDING' })}>恢复待办</button></div>)}
             </details></div>
         </article>)}
-        {!groups[key].length && <p className="empty">{key === 'todayCompleted' ? '完成的小事，会在这里慢慢积累。' : '这里暂时没有安排，留一点空白也很好。'}</p>}
-      </section>)}
-    <button className="primary mobile-add" onClick={() => edit()}>＋ 记一件事</button>
+        {!groups[key].length && !(key === 'todayCompleted' && completedSchedules.length) && <p className="empty">{key === 'todayCompleted' ? '完成的小事，会在这里慢慢积累。' : '这里暂时没有安排，留一点空白也很好。'}</p>}
+      </section></div>)}
+    <button className="primary mobile-add" onClick={() => edit()}>＋ 新增任务</button>
     {editor && <TaskEditor key={editor.taskId} identity={identity} initial={editor} onClose={() => setEditor(null)} onSaved={sync} />}
   </>;
 }
