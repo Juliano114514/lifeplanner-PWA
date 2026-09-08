@@ -17,7 +17,7 @@
   "vars": {
     "APP_ORIGIN": "https://lifeplanner-pwa.juliano114514.workers.dev",
     "GITHUB_CLIENT_ID": "Ov23liOjnxo1fUDGLeKb",
-    "ALLOWED_GITHUB_IDS": "116798367,0",
+    "ALLOWED_GITHUB_IDS": "116798367,326411123",
     "APP_TIME_ZONE": "Asia/Shanghai"
   }
 }

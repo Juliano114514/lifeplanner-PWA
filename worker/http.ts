@@ -30,7 +30,7 @@ export function config(env: Env): { ids: string[]; origin: string; zone: string 
 export function requireOrigin(request: Request, env: Env): void {
   if (request.headers.get('Origin') !== config(env).origin) throw new HttpError(403, 'ORIGIN_REJECTED', '请求来源无效');
 }
-export async function readJson(request: Request): Promise<unknown> {
+export async function readJson(request: Request, maxBytes = 65536): Promise<unknown> {
   if (!request.headers.get('Content-Type')?.startsWith('application/json')) throw new HttpError(415, 'JSON_REQUIRED', '请求必须使用 JSON');
   const reader = request.body?.getReader();
   if (!reader) throw new HttpError(400, 'EMPTY_BODY', '缺少请求内容');
@@ -40,7 +40,7 @@ export async function readJson(request: Request): Promise<unknown> {
     const { value, done } = await reader.read();
     if (done) break;
     length += value.byteLength;
-    if (length > 65536) { await reader.cancel(); throw new HttpError(413, 'TOO_LARGE', '请求过大'); }
+    if (length > maxBytes) { await reader.cancel(); throw new HttpError(413, 'TOO_LARGE', '请求过大'); }
     chunks.push(value);
   }
   const bytes = new Uint8Array(length);

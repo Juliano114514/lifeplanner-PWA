@@ -1,4 +1,4 @@
-import type { Identity, Member } from '../shared/contracts';
+import type { Identity, Member, UserProfile } from '../shared/contracts';
 import { config, cookie, cookieHeader, hash, HttpError, json, randomToken, requireOrigin, type Env } from './http';
 
 const SESSION_SECONDS = 60 * 60 * 24 * 30;
@@ -11,8 +11,16 @@ export async function identity(request: Request, env: Env): Promise<Identity> {
     .bind(await hash(token), Date.now()).first<Member>();
   if (!user || !ids.includes(user.id)) throw new HttpError(401, 'UNAUTHENTICATED', '登录已过期，请重新登录');
   const { results } = await env.DB.prepare('SELECT id, login, name FROM members WHERE id IN (?, ?)').bind(...ids).all<Member>();
-  return { user, timeZone: zone, members: ids.map((id, index) => results.find(m => m.id === id)
-    ?? { id, login: '', name: `成员 ${index + 1}（尚未登录）` }) };
+  const profiles = await env.DB.prepare('SELECT user_id, data FROM profiles WHERE user_id IN (?, ?)')
+    .bind(...ids).all<{ user_id: string; data: string }>();
+  const members = ids.map((id, index) => {
+    const member = results.find(m => m.id === id) ?? { id, login: '', name: `成员 ${index + 1}（尚未登录）` };
+    const row = profiles.results.find(value => value.user_id === id);
+    if (!row) return member;
+    const profile = JSON.parse(row.data) as UserProfile;
+    return { ...member, name: profile.name, profile };
+  });
+  return { user: members.find(member => member.id === user.id)!, timeZone: zone, members };
 }
 
 function redirect(path: string, env: Env, setCookie?: string): Response {

@@ -38,7 +38,13 @@ export interface Task extends TaskDraft {
   createdBy: string; updatedBy: string; createdAt: number; updatedAt: number;
   occurrences: Occurrence[];
 }
-export interface Member { id: string; name: string; login: string }
+export const profileSchema = z.object({
+  name: z.string().trim().min(1, '请输入名称').max(40),
+  avatar: z.string().max(400000).regex(/^(?:data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/]+={0,2})?$/),
+  bio: z.string().trim().max(300),
+}).strict();
+export type UserProfile = z.infer<typeof profileSchema>;
+export interface Member { id: string; name: string; login: string; profile?: UserProfile }
 export interface Identity { user: Member; members: Member[]; timeZone: string }
 export interface Snapshot { tasks: Task[]; serverTime: number }
 export interface ApiError { error: string; message: string; current?: Task | null }

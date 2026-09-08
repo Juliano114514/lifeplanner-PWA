@@ -160,8 +160,19 @@ button {
   display:grid;
   place-items:center;
   border-radius:50%;
-  background:var(--accent)
+  background:var(--accent);
+  padding:0;
+  flex-shrink:0;
+  overflow:hidden
 }
+.avatar img { width:100%;height:100%;object-fit:cover }
+.user-name { max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.profile-avatar-row { display:flex;align-items:center;gap:16px }
+.profile-avatar-row > div { min-width:0;flex:1 }
+.profile-avatar { width:72px;height:72px;font-size:28px }
+.profile-todos { list-style:none;padding:0;margin:0 }
+.profile-todos li { display:flex;flex-direction:column;gap:6px;padding:12px 0;border-bottom:1px solid #e0e6de;overflow-wrap:anywhere }
+.profile-todos .muted { font-size:12px }
 main {
   max-width:1040px;
   margin:auto;

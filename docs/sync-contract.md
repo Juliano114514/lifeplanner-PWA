@@ -108,6 +108,12 @@ IndexedDB 的 account 分区分别保存任务与生活数据的服务端基线�
 
 若新云端结构使某个旧实例操作无效，本机预览保留；提示采用云端后重新编辑。客户端不会伪造成功或静默删除待同步操作。
 
+## 个人资料
+
+`POST /api/v1/profile` 接受 `{ name, avatar, bio }`，只能修改当前会话账号，校验 Origin 和 `X-LifePlanner-Actor`。资料保存在 `0003_profiles.sql` 创建的独立 `profiles` 表中，GitHub 登录更新 `members` 不会覆盖资料。`GET /api/v1/me` 返回两位成员的资料，并将 `Member.name` 统一解析为个人资料名称，未设置时回退到 GitHub 名称。
+
+本机待同步资料优先覆盖自身的 `identity.user` 和 `identity.members`，因此各处成员标签立即一致。同步成功仅清除对应保存标记，上传期间新保存的内容仍保留；旧版仅本地保存的资料自动转为待同步。无待同步修改时采用云端资料。此处采用最后到达服务端的整份资料覆盖规则（包括网络重试），不使用任务或生活记录的版本冲突协议。资料上传失败保留本机内容；任务和生活记录在资料上传前完成同步。
+
 ## 后续 Android 实施顺序
 
 1. 保留现有 Room v8 的 Long 主键。新增任务本地 ID ↔ UUID 映射表，并给实例建立 task UUID + 日期的映射；不要将 JavaScript 不安全的 Long 值作为云端数字主键。

@@ -1,5 +1,5 @@
 import { openDB, type DBSchema } from 'idb';
-import type { Command, Identity, Operation, Task, TaskDraft } from '../../shared/contracts';
+import { profileSchema, type Command, type Identity, type Operation, type Task, type TaskDraft, type UserProfile } from '../../shared/contracts';
 import { applyCommand } from '../../shared/domain';
 import { applyPlannerCommand, emptyPlanner, type PlannerCommand, type PlannerData, type PlannerOperation } from '../../shared/planner';
 
@@ -8,6 +8,8 @@ export interface Conflict { current: Task | null; message: string }
 export interface PlannerPending { command: PlannerCommand; at: number; preview: PlannerData }
 export interface PlannerConflict { current: PlannerData; message: string }
 export interface Account {
+  profile?: UserProfile;
+  profilePending?: string | null;
   identity: Identity; base: Task[]; pending: Pending[];
   conflicts: Record<string, Conflict>; plannerBase: PlannerData; plannerPending: PlannerPending[];
   plannerConflict: PlannerConflict | null; lastSync: number | null;
@@ -30,8 +32,17 @@ export function subscribe(listener: () => void): () => void {
 function notify() { events.dispatchEvent(new Event('change')); channel?.postMessage('changed'); }
 function normalizeAccount(account: Account | undefined): Account | undefined {
   if (!account) return undefined;
-  return { ...account, plannerBase: account.plannerBase ?? emptyPlanner(), plannerPending: account.plannerPending ?? [],
+  // Upgrade profiles saved by the original local-only editor into pending saves.
+  const profilePending = account.profilePending === undefined && account.profile ? 'legacy-profile' : account.profilePending ?? null;
+  const profile = profilePending ? account.profile : account.identity.user.profile;
+  const user = profile ? { ...account.identity.user, name: profile.name, profile } : account.identity.user;
+  const identity = { ...account.identity, user, members: account.identity.members.map(member => member.id === user.id ? user : member) };
+  return { ...account, identity, profile, profilePending, plannerBase: account.plannerBase ?? emptyPlanner(), plannerPending: account.plannerPending ?? [],
     plannerConflict: account.plannerConflict ?? null };
+}
+export async function saveProfile(id: string, profile: UserProfile): Promise<void> {
+  const parsed = profileSchema.parse(profile);
+  await updateAccount(id, account => { account.profile = parsed; account.profilePending = crypto.randomUUID(); });
 }
 export const readAccount = async (id: string) => normalizeAccount(await (await database).get('accounts', id));
 export async function updateAccount(id: string, change: (account: Account) => void): Promise<void> {

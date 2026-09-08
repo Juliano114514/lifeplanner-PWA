@@ -1,4 +1,4 @@
-import type { Identity, Snapshot, Task } from '../../shared/contracts';
+import type { Identity, Snapshot, Task, UserProfile } from '../../shared/contracts';
 import { api, ApiFailure } from './api';
 import { acknowledge, mergeSnapshot, readAccount, saveIdentity, updateAccount } from './store';
 import { acknowledgePlanner, mergePlanner } from './store';
@@ -67,6 +67,19 @@ export function synchronize(id: string): Promise<void> {
     }
     const plannerSnapshot = await api<{ planner: PlannerData }>('/api/v1/planner/snapshot');
     await mergePlanner(id, plannerSnapshot.planner);
+    // Profile failures must not prevent task/planner synchronization.
+    const profileAccount = await readAccount(id);
+    if (profileAccount?.profilePending && profileAccount.profile) {
+      const pendingId = profileAccount.profilePending;
+      const result = await api<{ profile: UserProfile }>('/api/v1/profile', profileAccount.profile, id);
+      await updateAccount(id, state => {
+        if (state.profilePending !== pendingId) return;
+        state.profilePending = null;
+        state.profile = result.profile;
+        state.identity.user = { ...state.identity.user, name: result.profile.name, profile: result.profile };
+        state.identity.members = state.identity.members.map(member => member.id === id ? state.identity.user : member);
+      });
+    }
   };
   const promise = (navigator.locks ? navigator.locks.request(`lifeplanner-sync-${id}`, run) : run())
     .finally(() => running.delete(id));
