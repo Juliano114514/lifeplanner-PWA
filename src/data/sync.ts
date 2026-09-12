@@ -80,6 +80,13 @@ export function synchronize(id: string): Promise<void> {
         state.identity.members = state.identity.members.map(member => member.id === id ? state.identity.user : member);
       });
     }
+    const completed = await api<{ members: Array<{ id: string; lastSyncAt: number }> }>('/api/v1/sync/complete', {}, id);
+    await updateAccount(id, state => {
+      const stamps = new Map(completed.members.map(member => [member.id, member.lastSyncAt]));
+      state.identity.members = state.identity.members.map(member => ({ ...member, lastSyncAt: Math.max(member.lastSyncAt ?? 0, stamps.get(member.id) ?? 0) || null }));
+      state.identity.user = { ...state.identity.user, lastSyncAt: Math.max(state.identity.user.lastSyncAt ?? 0, stamps.get(id) ?? 0) || null };
+      state.lastSync = state.identity.user.lastSyncAt ?? state.lastSync;
+    });
   };
   const promise = (navigator.locks ? navigator.locks.request(`lifeplanner-sync-${id}`, run) : run())
     .finally(() => running.delete(id));

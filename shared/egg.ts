@@ -12,9 +12,9 @@ export const eggDraftSchema = z.object({
   image: media(IMAGE_LIMIT, /^image\/(png|jpeg|gif|webp)$/).nullable(),
   audio: media(AUDIO_LIMIT, /^audio\/(webm|ogg|mp4|wav)(?:;codecs=[\w.,-]+)?$/).nullable(),
 }).strict().refine(value => !!(value.text || value.image || value.audio), '请至少填写一项内容');
-export const eggSaveSchema = z.object({ id: z.uuid(), draft: eggDraftSchema }).strict();
+export const eggSaveSchema = z.object({ id: z.uuid(), ownerId: z.string().regex(/^\d+$/).optional(), draft: eggDraftSchema }).strict();
 export type EggDraft = z.infer<typeof eggDraftSchema>;
 export type EggMedia = NonNullable<EggDraft['image']>;
-export interface EggSummary { id: string; authorId: string; authorName: string; createdAt: number; text: string; imageName: string | null }
+export interface EggSummary { id: string; ownerId: string; authorId: string; authorName: string; createdAt: number; text: string; imageName: string | null }
 export interface EggEntry extends EggSummary { image: EggMedia | null; audio: EggMedia | null }
 export interface EggHistory { entries: EggSummary[]; nextCursor: number | null }

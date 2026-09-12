@@ -44,7 +44,7 @@ export const profileSchema = z.object({
   bio: z.string().trim().max(300),
 }).strict();
 export type UserProfile = z.infer<typeof profileSchema>;
-export interface Member { id: string; name: string; login: string; profile?: UserProfile }
+export interface Member { id: string; name: string; login: string; profile?: UserProfile; lastSyncAt?: number | null }
 export interface Identity { user: Member; members: Member[]; timeZone: string }
 export interface Snapshot { tasks: Task[]; serverTime: number }
 export interface ApiError { error: string; message: string; current?: Task | null }

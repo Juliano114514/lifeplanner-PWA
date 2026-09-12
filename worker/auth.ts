@@ -10,7 +10,7 @@ export async function identity(request: Request, env: Env): Promise<Identity> {
     JOIN members m ON m.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?`)
     .bind(await hash(token), Date.now()).first<Member>();
   if (!user || !ids.includes(user.id)) throw new HttpError(401, 'UNAUTHENTICATED', '登录已过期，请重新登录');
-  const { results } = await env.DB.prepare('SELECT id, login, name FROM members WHERE id IN (?, ?)').bind(...ids).all<Member>();
+  const { results } = await env.DB.prepare('SELECT m.id, m.login, m.name, s.last_sync_at AS lastSyncAt FROM members m LEFT JOIN member_sync s ON s.user_id = m.id WHERE m.id IN (?, ?)').bind(...ids).all<Member>();
   const profiles = await env.DB.prepare('SELECT user_id, data FROM profiles WHERE user_id IN (?, ?)')
     .bind(...ids).all<{ user_id: string; data: string }>();
   const members = ids.map((id, index) => {

@@ -2,9 +2,9 @@ import type { Identity } from '../shared/contracts';
 import { eggSaveSchema, type EggEntry, type EggMedia, type EggSummary } from '../shared/egg';
 import { config, hash, HttpError, json, readJson, requireOrigin, type Env } from './http';
 
-interface Row { seq: number; id: string; author_id: string; author_name: string; created_at: number; text: string; media: string; request_hash: string }
+interface Row { seq: number; id: string; owner_id: string; deleted_at: number | null; author_id: string; author_name: string; created_at: number; text: string; media: string; request_hash: string }
 type MediaInfo = Record<'image' | 'audio', Omit<EggMedia, 'data'> | null>;
-const summary = (row: Row): EggSummary => ({ id: row.id, authorId: row.author_id, authorName: row.author_name, createdAt: row.created_at, text: row.text, imageName: (JSON.parse(row.media) as MediaInfo).image?.name ?? null });
+const summary = (row: Row): EggSummary => ({ id: row.id, ownerId: row.owner_id, authorId: row.author_id, authorName: row.author_name, createdAt: row.created_at, text: row.text, imageName: (JSON.parse(row.media) as MediaInfo).image?.name ?? null });
 async function entry(env: Env, row: Row): Promise<EggEntry> {
   const meta = JSON.parse(row.media) as MediaInfo;
   const { results } = await env.DB.prepare('SELECT kind, data FROM egg_media WHERE egg_id = ? ORDER BY part').bind(row.id).all<{ kind: 'image' | 'audio'; data: string }>();
@@ -18,28 +18,40 @@ export async function eggRoute(request: Request, env: Env, actor: Identity): Pro
     if (url.pathname === base + '/latest') {
       const owner = url.searchParams.get('owner') ?? actor.user.id;
       if (!config(env).ids.includes(owner)) throw new HttpError(400, 'INVALID_OWNER', '成员无效');
-      const row = await env.DB.prepare('SELECT * FROM eggs WHERE author_id = ? ORDER BY seq DESC LIMIT 1').bind(owner).first<Row>();
+      const row = await env.DB.prepare('SELECT * FROM eggs WHERE owner_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1').bind(owner).first<Row>();
       return json({ entry: row ? await entry(env, row) : null });
     }
     if (url.pathname === base) {
       const before = url.searchParams.get('before'), cursor = before === null ? Number.MAX_SAFE_INTEGER : Number(before);
       if (!Number.isSafeInteger(cursor) || cursor < 1) throw new HttpError(400, 'INVALID_CURSOR', '历史页码无效');
-      const { results } = await env.DB.prepare('SELECT * FROM eggs WHERE seq < ? ORDER BY seq DESC LIMIT 31').bind(cursor).all<Row>();
+      const { results } = await env.DB.prepare('SELECT * FROM eggs WHERE seq < ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT 31').bind(cursor).all<Row>();
       return json({ entries: results.slice(0, 30).map(summary), nextCursor: results.length > 30 ? results[29].seq : null });
     }
-    const row = await env.DB.prepare('SELECT * FROM eggs WHERE id = ?').bind(url.pathname.slice(base.length + 1)).first<Row>();
+    const row = await env.DB.prepare('SELECT * FROM eggs WHERE id = ? AND deleted_at IS NULL').bind(url.pathname.slice(base.length + 1)).first<Row>();
     if (!row) throw new HttpError(404, 'NOT_FOUND', '彩蛋记录不存在');
     return json({ entry: await entry(env, row) });
   }
-  if (request.method !== 'POST' || url.pathname !== base) throw new HttpError(405, 'METHOD_NOT_ALLOWED', '不支持此操作');
+  if (request.method !== 'POST') throw new HttpError(405, 'METHOD_NOT_ALLOWED', '不支持此操作');
   requireOrigin(request, env);
   if (request.headers.get('X-LifePlanner-Actor') !== actor.user.id) throw new HttpError(401, 'ACCOUNT_CHANGED', '账号已改变，请刷新页面后继续');
+  const deletion = url.pathname.match(/^\/api\/v1\/eggs\/([0-9a-f-]{36})\/delete$/i);
+  if (deletion) {
+    // Retain only the retry guard; clear content and media atomically so retries cannot resurrect it.
+    await env.DB.batch([
+      env.DB.prepare("UPDATE eggs SET deleted_at = COALESCE(deleted_at, ?), text = '', media = '{\"image\":null,\"audio\":null}' WHERE id = ?").bind(Date.now(), deletion[1]),
+      env.DB.prepare('DELETE FROM egg_media WHERE egg_id = ?').bind(deletion[1]),
+    ]);
+    return json({ deleted: true });
+  }
+  if (url.pathname !== base) throw new HttpError(405, 'METHOD_NOT_ALLOWED', '不支持此操作');
   const parsed = eggSaveSchema.safeParse(await readJson(request, 4300000));
   if (!parsed.success) throw new HttpError(400, 'INVALID_EGG', '请检查文案、图片格式和大小、录音内容');
-  const { id, draft } = parsed.data, digest = await hash(JSON.stringify(draft));
+  const { id, draft } = parsed.data, ownerId = parsed.data.ownerId ?? actor.user.id, digest = await hash(JSON.stringify(draft));
+  if (!config(env).ids.includes(ownerId)) throw new HttpError(400, 'INVALID_OWNER', '成员无效');
   async function previous() {
     const row = await env.DB.prepare('SELECT * FROM eggs WHERE id = ?').bind(id).first<Row>();
-    if (row && (row.author_id !== actor.user.id || row.request_hash !== digest)) throw new HttpError(409, 'SAVE_CONFLICT', '保存编号已使用，请重新打开编辑器');
+    if (row && (row.author_id !== actor.user.id || row.owner_id !== ownerId || row.request_hash !== digest)) throw new HttpError(409, 'SAVE_CONFLICT', '保存编号已使用，请重新打开编辑器');
+    if (row?.deleted_at !== null && row?.deleted_at !== undefined) throw new HttpError(410, 'DELETED', '此彩蛋已删除，请重新打开编辑器');
     return row;
   }
   const saved = await previous();
@@ -54,11 +66,11 @@ export async function eggRoute(request: Request, env: Env, actor: Identity): Pro
   }
   const createdAt = Date.now();
   try {
-    await env.DB.batch([env.DB.prepare('INSERT INTO eggs(id, author_id, author_name, created_at, text, media, request_hash) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, actor.user.id, actor.user.name, createdAt, draft.text, JSON.stringify(meta), digest), ...parts]);
+    await env.DB.batch([env.DB.prepare('INSERT INTO eggs(id, author_id, author_name, created_at, text, media, request_hash, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, actor.user.id, actor.user.name, createdAt, draft.text, JSON.stringify(meta), digest, ownerId), ...parts]);
   } catch (error) {
     const retry = await previous();
     if (retry) return json({ entry: await entry(env, retry) });
     throw error;
   }
-  return json({ entry: { id, authorId: actor.user.id, authorName: actor.user.name, createdAt, ...draft, imageName: draft.image?.name ?? null } satisfies EggEntry });
+  return json({ entry: { id, ownerId, authorId: actor.user.id, authorName: actor.user.name, createdAt, ...draft, imageName: draft.image?.name ?? null } satisfies EggEntry });
 }

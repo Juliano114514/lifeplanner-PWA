@@ -45,5 +45,18 @@ const secondPage = db.prepare('SELECT id FROM eggs WHERE seq < ? ORDER BY seq DE
 if (firstPage.id !== 'egg-second' || secondPage.id !== 'egg-first') throw new Error('Egg history cursor lost a same-time revision');
 if (db.prepare('PRAGMA foreign_key_check').all().length) throw new Error('Egg foreign key check failed');
 console.log('Egg 2 MiB media round-trip, atomic rollback and history pagination: passed (in-memory SQLite).');
+// Per-user synchronization timestamps must remain persistent and monotonic.
+const stamp = db.prepare('INSERT INTO member_sync(user_id, last_sync_at) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET last_sync_at = MAX(member_sync.last_sync_at, excluded.last_sync_at)');
+stamp.run('egg-member', 200); stamp.run('egg-member', 100);
+if (db.prepare('SELECT last_sync_at FROM member_sync WHERE user_id = ?').get('egg-member').last_sync_at !== 200) throw new Error('Sync timestamp moved backwards');
+// Deleting one revision hides it from latest/history and removes attached content.
+db.prepare('UPDATE eggs SET owner_id = author_id').run();
+db.exec('BEGIN');
+db.prepare("UPDATE eggs SET deleted_at = ?, text = '', media = '{}' WHERE id = ?").run(3, 'egg-first');
+db.prepare('DELETE FROM egg_media WHERE egg_id = ?').run('egg-first');
+db.exec('COMMIT');
+if (db.prepare('SELECT COUNT(*) AS n FROM egg_media WHERE egg_id = ?').get('egg-first').n !== 0 || db.prepare('SELECT text FROM eggs WHERE id = ?').get('egg-first').text !== '') throw new Error('Deleted media/content remained');
+if (db.prepare('SELECT COUNT(*) AS n FROM eggs WHERE deleted_at IS NULL AND owner_id = ?').get('egg-member').n !== 1) throw new Error('Deleted revision is still visible');
+console.log('Member sync persistence and egg deletion visibility/media cleanup: passed (in-memory SQLite).');
 db.close();
 console.log('SQL migrations, integrity, atomic revision rejection and update: passed (in-memory SQLite).');

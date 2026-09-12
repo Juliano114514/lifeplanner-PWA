@@ -17,7 +17,7 @@ export function EggDialog({ account, ownerId, entryId, onClose, onEditing }: { a
   }, [account.identity.user.id, ownerId, entryId, reload]);
   useEffect(() => { onEditing(true); return () => onEditing(false); }, [onEditing]);
   const author = entry?.authorName ?? account.identity.members.find(member => member.id === ownerId)?.name ?? account.identity.user.name;
-  if (editing) return <EggEditor account={account} initial={entry} onHistory={() => { onClose(); navigate('/egg-history'); }} onCancel={() => setEditing(false)} onSaved={value => { setEntry(value); setEditing(false); }} />;
+  if (editing) return <EggEditor account={account} ownerId={entry?.ownerId ?? ownerId ?? account.identity.user.id} initial={entry} onHistory={() => { onClose(); navigate('/egg-history'); }} onCancel={() => setEditing(false)} onSaved={value => { setEntry(value); setEditing(false); }} />;
   return <Modal title={`${author}说`} onClose={onClose}>
     {loading ? <p role="status">正在打开彩蛋…</p> : error ? <p className="notice error-text" role="alert">{error}<button className="text-button" onClick={() => { setLoading(true); setReload(value => value + 1); }}>重试</button></p> : (entry?.text || entry?.image || entry?.audio) ? <div className="egg-content">{entry.text && <p className="egg-text">{entry.text}</p>}
       {entry?.image && <img className="egg-image" src={mediaSource(entry.image)} alt={entry.image.name} />}
@@ -27,7 +27,7 @@ export function EggDialog({ account, ownerId, entryId, onClose, onEditing }: { a
     <button className="text-button egg-footer-link" disabled={loading || !!error} onClick={() => setEditing(true)}>我也要写</button>
   </Modal>;
 }
-function EggEditor({ account, initial, onCancel, onSaved, onHistory }: { account: Account; initial: EggEntry | null; onCancel: () => void; onHistory: () => void; onSaved: (entry: EggEntry) => void }) {
+function EggEditor({ account, ownerId, initial, onCancel, onSaved, onHistory }: { account: Account; ownerId: string; initial: EggEntry | null; onCancel: () => void; onHistory: () => void; onSaved: (entry: EggEntry) => void }) {
   const [draft, setDraft] = useState<EggDraft>(() => ({ text: initial?.text ?? '', image: initial?.image ?? null, audio: initial?.audio ?? null }));
   const [error, setError] = useState(''), [saving, setSaving] = useState(false), [reading, setReading] = useState(false);
   const alive = useRef(true), request = useRef<{ body: string; id: string } | null>(null);
@@ -54,7 +54,7 @@ function EggEditor({ account, initial, onCancel, onSaved, onHistory }: { account
     setSaving(true); setError('');
     const body = JSON.stringify(parsed.data);
     if (request.current?.body !== body) request.current = { body, id: crypto.randomUUID() };
-    try { const result = await api<{ entry: EggEntry }>('/api/v1/eggs', { id: request.current.id, draft: parsed.data }, account.identity.user.id); if (alive.current) onSaved(result.entry); }
+    try { const result = await api<{ entry: EggEntry }>('/api/v1/eggs', { id: request.current.id, ownerId, draft: parsed.data }, account.identity.user.id); if (alive.current) onSaved(result.entry); }
     catch (reason) { if (alive.current) setError(reason instanceof Error ? reason.message : '保存失败，请重试'); }
     finally { if (alive.current) setSaving(false); }
   }
