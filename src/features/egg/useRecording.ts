@@ -2,10 +2,26 @@ import { useEffect, useRef, useState } from 'react';
 import { AUDIO_LIMIT, type EggMedia } from '../../../shared/egg';
 import { readMedia } from './media';
 
+function permissionError(reason: unknown): string {
+  if (reason instanceof DOMException) {
+    if (reason.name === 'NotAllowedError' || reason.name === 'SecurityError') return '麦克风被拒绝或被系统限制。请在此 PWA／安装它的浏览器的权限设置中允许麦克风，再检查系统是否允许该应用使用麦克风。';
+    if (reason.name === 'NotFoundError') return '没有找到可用麦克风，请检查设备或耳机连接。';
+    if (reason.name === 'NotReadableError' || reason.name === 'AbortError') return '麦克风暂时不可用，可能被其他应用占用或被系统限制。请结束其他录音后重试。';
+  }
+  return reason instanceof Error ? reason.message : '无法打开麦克风，请重试。';
+}
+
 export function useRecording(onReady: (value: EggMedia) => void, onError: (message: string) => void) {
   const [phase, setPhase] = useState<'idle' | 'requesting' | 'recording' | 'finishing'>('idle');
   const [seconds, setSeconds] = useState(0);
-  const session = useRef<{ active: boolean; pending: boolean; recorder: MediaRecorder | null; stream: MediaStream | null; timeout?: number; interval?: number }>({ active: true, pending: false, recorder: null, stream: null });
+  const session = useRef<{ active: boolean; pending: boolean; requestId: number; permissionTimer?: number; recorder: MediaRecorder | null; stream: MediaStream | null; timeout?: number; interval?: number }>({ active: true, pending: false, requestId: 0, recorder: null, stream: null });
+  function cancelRequest() {
+    const state = session.current;
+    if (!state.pending) return;
+    state.requestId++; state.pending = false;
+    clearTimeout(state.permissionTimer);
+    if (state.active) setPhase('idle');
+  }
   function stop() {
     const state = session.current;
     clearTimeout(state.timeout); clearInterval(state.interval);
@@ -18,7 +34,8 @@ export function useRecording(onReady: (value: EggMedia) => void, onError: (messa
     const hidden = () => { if (document.hidden && state.recorder?.state === 'recording') { state.recorder.stop(); state.stream?.getTracks().forEach(track => track.stop()); } };
     document.addEventListener('visibilitychange', hidden);
     return () => {
-      state.active = false;
+      state.active = false; state.requestId++; state.pending = false;
+      clearTimeout(state.permissionTimer);
       clearTimeout(state.timeout); clearInterval(state.interval);
       document.removeEventListener('visibilitychange', hidden);
       if (state.recorder && state.recorder.state !== 'inactive') state.recorder.stop();
@@ -28,11 +45,21 @@ export function useRecording(onReady: (value: EggMedia) => void, onError: (messa
   async function start() {
     const state = session.current;
     if (state.pending || state.recorder?.state === 'recording') return;
+    if (!window.isSecureContext) { onError('录音需要安全连接，请从 HTTPS 地址打开应用。'); return; }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') { onError('当前浏览器不支持录音，请使用支持录音的 HTTPS 浏览器'); return; }
+    const requestId = ++state.requestId;
     state.pending = true; setPhase('requesting'); onError('');
+    state.permissionTimer = window.setTimeout(() => {
+      if (state.active && state.pending && state.requestId === requestId) {
+        cancelRequest();
+        onError('麦克风授权尚未返回。请检查系统或浏览器的麦克风权限，再点开始录音；图片和文案仍可继续编辑。');
+      }
+    }, 30000);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!state.active || document.hidden) { stream.getTracks().forEach(track => track.stop()); if (state.active) setPhase('idle'); return; }
+      if (!state.active || state.requestId !== requestId) { stream.getTracks().forEach(track => track.stop()); return; }
+      clearTimeout(state.permissionTimer); state.pending = false;
+      if (document.hidden) { stream.getTracks().forEach(track => track.stop()); setPhase('idle'); onError('已获得麦克风权限，请回到应用后再次点击开始录音。'); return; }
       state.stream = stream;
       const mimeType = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
       if (!mimeType) throw new Error('当前浏览器没有可用的录音格式');
@@ -57,9 +84,11 @@ export function useRecording(onReady: (value: EggMedia) => void, onError: (messa
       state.timeout = window.setTimeout(stop, 15000);
       state.interval = window.setInterval(() => setSeconds(Math.min(15, Math.floor((performance.now() - started) / 1000))), 200);
     } catch (reason) {
-      state.stream?.getTracks().forEach(track => track.stop());
-      if (state.active) { setPhase('idle'); onError(reason instanceof DOMException && reason.name === 'NotAllowedError' ? '未获得麦克风权限，请允许录音后重试' : reason instanceof Error ? reason.message : '无法打开麦克风'); }
-    } finally { state.pending = false; }
+      if (state.requestId === requestId) {
+        state.stream?.getTracks().forEach(track => track.stop());
+        if (state.active) { setPhase('idle'); onError(permissionError(reason)); }
+      }
+    } finally { if (state.requestId === requestId) { clearTimeout(state.permissionTimer); state.pending = false; } }
   }
-  return { phase, seconds, start, stop };
+  return { phase, seconds, start, stop, cancelRequest };
 }
