@@ -6,7 +6,7 @@ import { enqueue, enqueuePlanner, loadDraft, materialize, materializePlanner, re
 import { Badge, formatMinute, PageHeading } from '../planner/PlannerUi';
 import { TaskEditor } from './TaskEditor';
 
-const groupNames = { urgent: '置顶 / 临近 DDL', todayPending: '今日未完成', todayCompleted: '今日已完成', others: '其他任务' };
+const groupNames = { urgent: '置顶 / 临近15天', todayPending: '今日未完成', todayCompleted: '今日已完成', others: '其他任务' };
 const recurrenceNames = { DAILY: '每日', WEEKLY: '每周', MONTHLY: '每月' };
 const groupKeys = ['urgent', 'todayPending', 'todayCompleted', 'others'] as const;
 function TaskSummary({ task, zone, name }: { task: Task | null; zone: string; name: (id: string) => string }) {
@@ -30,6 +30,7 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
   const visible = tasks.filter(t => filter === 'all' || (filter === 'mine' ? t.ownerId === userId : t.ownerId !== userId));
   const groups = organize(visible, date, zone);
   const ownerName = (id: string) => identity.members.find(m => m.id === id)?.name ?? '成员';
+  const ownerAvatar = (id: string) => (id === userId ? account.profile : identity.members.find(m => m.id === id)?.profile)?.avatar;
   const schedules = materializePlanner(account).schedules.filter(value => value.date === date && !value.isArchived);
   const pendingSchedules = schedules.filter(value => value.status !== 'COMPLETED').sort((a, b) => a.startMinute - b.startMinute);
   const completedSchedules = schedules.filter(value => value.status === 'COMPLETED').sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
@@ -100,16 +101,21 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
         <section className="task-section">
         <div className="section-heading"><h2><span className={`section-dot ${key}`} />{groupNames[key]}</h2><span>{groups[key].length.toString().padStart(2, '0')}</span></div>
         {key === 'todayCompleted' && completedSchedules.map(block => <article className="task-card schedule-task-card is-done" key={block.id}><button className="completion" onClick={() => void toggleSchedule(block.id, true)} aria-label={`恢复日程：${block.title}`}>✓</button><button className="task-body card-main" onClick={() => navigate(`/schedule?date=${date}`)}><strong>{block.title}</strong><span>{formatMinute(block.startMinute)}–{formatMinute(block.endMinute)}</span></button><Badge tone="success">已完成</Badge></article>)}
-        {groups[key].map(({ task, occurrence }) => <article className={`task-card ${occurrence?.status === 'COMPLETED' ? 'is-done' : ''}`} key={task.id}>
-          <button className="completion" disabled={!occurrence || !!account.conflicts[task.id]} aria-label={occurrence?.status === 'COMPLETED' ? `恢复待办：${task.title}` : `完成：${task.title}`}
-            onClick={() => occurrence && void act(task.id, { type: 'status', date: occurrence.plannedDate, status: occurrence.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED' })}>
-            {occurrence?.status === 'COMPLETED' ? '✓' : ''}</button>
+        {groups[key].map(({ task, occurrence }) => <article className={`task-card planned-task-card ${occurrence?.status === 'COMPLETED' ? 'is-done' : ''}`} key={task.id}>
+          <div className="task-overview">
+          <span className="avatar task-avatar" aria-hidden="true">{ownerAvatar(task.ownerId) ? <img src={ownerAvatar(task.ownerId)} alt="" /> : ownerName(task.ownerId).slice(0, 1)}</span>
           <div className="task-body"><div className="task-title-row"><button className="task-title" onClick={() => edit(task)} disabled={!!account.conflicts[task.id]}>{task.title}</button>
             {task.isPinned && <span className="pin-label">置顶</span>}</div>
-            {task.note && <p className="task-note">{task.note}</p>}
             <div className="metadata"><span className={`owner ${task.ownerId === userId ? '' : 'other'}`}>{ownerName(task.ownerId)}</span>
-              {task.recurrence && <span>↻ {recurrenceNames[task.recurrence]}</span>}
               {(occurrence?.dueAt ?? task.dueAt) !== null && <span>截止 {localDateTime((occurrence?.dueAt ?? task.dueAt)!, zone).replace('T', ' ')}</span>}
+            </div></div>
+          <input className="task-checkbox" type="checkbox" checked={occurrence?.status === 'COMPLETED'} disabled={!occurrence || !!account.conflicts[task.id]} aria-label={`完成任务：${task.title}`}
+            onChange={event => occurrence && void act(task.id, { type: 'status', date: occurrence.plannedDate, status: event.target.checked ? 'COMPLETED' : 'PENDING' })} />
+          </div>
+          <div className="task-extra">
+            {task.note && <p className="task-note">{task.note}</p>}
+            <div className="metadata">
+              {task.recurrence && <span>↻ {recurrenceNames[task.recurrence]}</span>}
               {occurrence && <span>{occurrence.plannedDate}</span>}
               {account.pending.some(p => p.command.taskId === task.id) && <span>待同步</span>}</div>
             <details className="task-details"><summary>操作与记录</summary><div className="actions">

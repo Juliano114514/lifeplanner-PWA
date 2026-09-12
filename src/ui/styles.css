@@ -157,6 +157,8 @@ button {
 .avatar {
   width:34px;
   height:34px;
+  min-height:0;
+  aspect-ratio:1;
   display:grid;
   place-items:center;
   border-radius:50%;
@@ -347,6 +349,56 @@ main {
   border:1px solid var(--line);
   border-radius:var(--radius);
   margin-bottom:10px
+}
+.planned-task-card {
+  display:block
+}
+.task-overview {
+  display:flex;
+  align-items:center;
+  gap:12px
+}
+.task-avatar {
+  width:40px;
+  height:40px
+}
+.task-overview .metadata {
+  margin-top:4px
+}
+.task-checkbox {
+  appearance:none;
+  width:28px;
+  height:28px;
+  min-height:28px;
+  flex-shrink:0;
+  margin:0;
+  border:2px solid #a4b59a;
+  border-radius:4px;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  background:var(--canvas)
+}
+.task-checkbox:checked {
+  background:var(--accent-dark);
+  border-color:var(--accent-dark)
+}
+.task-checkbox:checked::after {
+  content:'✓';
+  color:white;
+  font-size:20px;
+  line-height:1
+}
+.task-checkbox:focus-visible {
+  outline:3px solid var(--accent-dark);
+  outline-offset:3px
+}
+.task-checkbox:disabled {
+  opacity:.5;
+  cursor:default
+}
+.task-extra {
+  margin-left:52px
 }
 .completion {
   width:48px;
@@ -1354,9 +1406,15 @@ main {
     padding:0;
     overflow:hidden;
     color:transparent;
+    font-size:0;
     gap:0
   }
   .page-heading .primary span {
+    display:grid;
+    place-items:center;
+    flex-shrink:0;
+    width:100%;
+    line-height:1;
     color:white;
     font-size:22px
   }

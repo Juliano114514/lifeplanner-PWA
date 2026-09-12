@@ -104,7 +104,7 @@ const nullableNumber = (a: number | null | undefined, b: number | null | undefin
 // Same branch priority and null ordering as Android TodoOrganizer.
 export function organize(tasks: Task[], date: string, zone: string): Overview {
   const groups: Overview = { urgent: [], todayPending: [], todayCompleted: [], others: [] };
-  const urgentEnd = addDays(date, 3);
+  const urgentEnd = addDays(date, 15);
   for (const task of tasks.filter(t => !t.isArchived).sort((a, b) => b.createdAt - a.createdAt)) {
     const related = task.occurrences;
     const pending = related.filter(o => o.status === 'PENDING');
@@ -117,7 +117,8 @@ export function organize(tasks: Task[], date: string, zone: string): Overview {
     if (urgent) groups.urgent.push({ task, occurrence: urgent });
     else if (pendingToday) groups.todayPending.push({ task, occurrence: pendingToday });
     else if (completedToday) groups.todayCompleted.push({ task, occurrence: completedToday });
-    else groups.others.push({ task, occurrence: pending.find(o => o.plannedDate >= date) ?? pending[0] });
+    else groups.others.push({ task, occurrence: pending.find(o => o.plannedDate >= date) ?? pending[0]
+      ?? related.filter(o => o.status === 'COMPLETED').sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))[0] });
   }
   groups.urgent.sort((a, b) => nullableNumber(a.occurrence?.dueAt ?? a.task.dueAt, b.occurrence?.dueAt ?? b.task.dueAt)
     || (a.task.title < b.task.title ? -1 : a.task.title > b.task.title ? 1 : 0));
