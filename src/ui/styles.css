@@ -1423,3 +1423,17 @@ input,select,textarea { accent-color:var(--accent-dark) }
 .home-page .recent-todos { margin-top:32px }
 .plan-date-actions { display:grid;gap:12px;margin-top:24px }
 @media(max-width:640px) { .sidebar nav a { min-width:0 } .sidebar nav a>span { width:40px } }
+
+.home-members { display:grid;gap:12px;margin:24px 0 }
+.home-members .home-profile { margin:0;border:2px solid transparent;border-radius:var(--radius);gap:12px }
+.home-members .home-profile.selected { border-color:var(--accent-dark) }
+.home-profile-main { display:flex;align-items:center;gap:14px;flex:1;min-width:0;padding:0;text-align:left }
+.home-profile-name { display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px }
+.home-profile-name small { font-size:10px }
+.recent-task-cards { margin-top:16px }
+.inventory-menu { display:grid;gap:14px;margin:24px 0 }
+.inventory-menu-item { display:flex;align-items:center;gap:16px;min-height:88px }
+.inventory-menu-item > span { font-size:26px;color:var(--accent-dark) }
+.inventory-menu-item > strong { flex:1 }
+
+.home-profile[aria-pressed=true] .task-checkbox { background:var(--accent-dark);border-color:var(--accent-dark);color:var(--on-accent);font-size:20px;line-height:1 }

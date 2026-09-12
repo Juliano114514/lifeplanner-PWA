@@ -14,6 +14,9 @@ function stockValue(item: StockItem) {
   return item.trackingMode === 'PERCENT' ? `${item.currentAmount}%` : `${item.currentAmount}${item.unit}`;
 }
 
+export function InventoryHome() {
+  return <><PageHeading title="库存" /><div className="inventory-menu"><Link className="content-card inventory-menu-item" to="/dishes"><span aria-hidden="true">◒</span><strong>菜品</strong><span aria-hidden="true">›</span></Link><Link className="content-card inventory-menu-item" to="/inventory/items"><span aria-hidden="true">▣</span><strong>库存</strong><span aria-hidden="true">›</span></Link></div></>;
+}
 export const DishesPage = (props: StockPageProps) => <StockPage {...props} kind="FOOD" />;
 export const InventoryPage = (props: StockPageProps) => <StockPage {...props} kind="HOUSEHOLD" />;
 interface StockPageProps { account: Account; sync: () => void; onEditing: (value: boolean) => void }
