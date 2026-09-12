@@ -173,3 +173,5 @@ docs/                API、Android 接入及验收说明
 API 和 Android 字段映射见 [同步契约](docs/sync-contract.md)。Android 接入仍需实现原生登录、稳定 UUID 映射与旧数据上传；现有 Android 仓库本轮没有修改。
 
 参考：[Cloudflare React 部署](https://developers.cloudflare.com/workers/framework-guides/web-apps/react/)、[D1 命令](https://developers.cloudflare.com/d1/wrangler-commands/)、[GitHub OAuth](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)、[WebKit 存储策略](https://webkit.org/blog/14403/updates-to-storage-policy/)。
+
+彩蛋编辑、历史记录与新增数据库迁移见 [彩蛋说明](docs/easter-eggs.md)。

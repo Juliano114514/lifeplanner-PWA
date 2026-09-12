@@ -1437,3 +1437,16 @@ input,select,textarea { accent-color:var(--accent-dark) }
 .inventory-menu-item > strong { flex:1 }
 
 .home-profile[aria-pressed=true] .task-checkbox { background:var(--accent-dark);border-color:var(--accent-dark);color:var(--on-accent);font-size:20px;line-height:1 }
+
+.egg-content { display:grid;gap:16px;margin:20px 0 }
+.egg-text { white-space:pre-wrap;overflow-wrap:anywhere }
+.egg-image { display:block;max-width:100%;max-height:45dvh;object-fit:contain;margin:auto;border-radius:var(--radius-sm) }
+.egg-content audio,.egg-media-preview audio { width:100%;max-width:100% }
+.egg-footer-link { display:block;margin:12px auto 0;font-size:12px }
+.egg-media-preview { margin:12px 0;overflow-wrap:anywhere }
+.egg-recording { display:grid;gap:8px;margin:20px 0 }
+.egg-recording p { color:var(--muted);font-size:12px }
+.egg-history { padding-left:22px;margin:24px 0 }
+.egg-history li { padding:12px 0;border-bottom:1px solid var(--line) }
+.egg-history button { display:flex;flex-direction:column;gap:6px;width:100%;text-align:left;padding:4px;overflow-wrap:anywhere }
+.egg-history small { color:var(--muted);white-space:pre-wrap }

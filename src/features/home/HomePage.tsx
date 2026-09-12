@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { materialize, materializePlanner, type Account } from '../../data/store';
 import { RecentTodos } from '../planner/RecentTodos';
-import { Modal } from '../planner/PlannerUi';
+import { EggDialog } from '../egg/EggDialog';
 
 function updatedLabel(at: number, now: number, zone: string) {
   if (!at) return '暂无记录';
@@ -10,7 +10,7 @@ function updatedLabel(at: number, now: number, zone: string) {
   if (days < 7) return `${days}天前`;
   return new Intl.DateTimeFormat('zh-CN', { timeZone: zone, month: 'long', day: 'numeric' }).format(at);
 }
-export function HomePage({ account, sync }: { account: Account; sync: () => void }) {
+export function HomePage({ account, sync, onEditing }: { account: Account; sync: () => void; onEditing: (value: boolean) => void }) {
   const userId = account.identity.user.id;
   const [selected, setSelected] = useState(userId), [birthday, setBirthday] = useState(false), [now, setNow] = useState(Date.now);
   const clicks = useRef({ id: '', count: 0, at: 0 });
@@ -37,6 +37,6 @@ export function HomePage({ account, sync }: { account: Account; sync: () => void
       </button>;
     })}</div>
     <RecentTodos key={selected} account={account} ownerId={selected} sync={sync} />
-    {birthday && <Modal title="扑咪生日快乐" onClose={() => setBirthday(false)}><div className="plan-date-actions"><button className="primary" onClick={() => setBirthday(false)}>确定</button></div></Modal>}
+    {birthday && <EggDialog account={account} ownerId={selected} onClose={() => setBirthday(false)} onEditing={onEditing} />}
   </section>;
 }

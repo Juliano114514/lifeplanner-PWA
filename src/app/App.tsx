@@ -5,6 +5,7 @@ import { api, ApiFailure } from '../data/api';
 import { cachedAccount, readAccount, resolvePlannerConflict, saveIdentity, subscribe, type Account } from '../data/store';
 import { synchronize } from '../data/sync';
 import { ProfileDialog } from '../features/profile/ProfileDialog';
+const EggHistoryPage = lazy(() => import('../features/egg/EggHistoryPage').then(module => ({ default: module.EggHistoryPage })));
 const HomePage = lazy(() => import('../features/home/HomePage').then(module => ({ default: module.HomePage })));
 const TasksPage = lazy(() => import('../features/tasks/TasksPage').then(module => ({ default: module.TasksPage })));
 const SchedulePage = lazy(() => import('../features/schedule/SchedulePage').then(module => ({ default: module.SchedulePage })));
@@ -131,12 +132,13 @@ export function App() {
             }}>{editing || profileOpen ? '关闭编辑页后更新' : '更新应用'}</button></div>}
             {profileOpen && <ProfileDialog key={id} account={account} onClose={() => setProfileOpen(false)} sync={syncNow} />}
             {account.plannerConflict && <section className="conflict" role="alert"><p className="eyebrow">需要你来决定</p><h3>共享生活记录有不同版本</h3><p>{account.plannerConflict.message}</p><p className="hint">日程、日记、菜品、库存和采购属于同一原子版本；任务不受这次选择影响。</p><div className="actions"><button onClick={() => void choosePlannerConflict('cloud')}>采用云端，放弃本机修改</button><button onClick={() => void choosePlannerConflict('local')}>在云端最新版上重放本机修改</button></div></section>}
-            <Suspense fallback={<p className="empty">正在打开生活计划…</p>}><Routes><Route path="/home" element={<HomePage key={id} account={account} sync={syncNow} />} /><Route path="/tasks" element={<TasksPage key={id} account={account} sync={syncNow} onEditing={setEditing} />} />
+            <Suspense fallback={<p className="empty">正在打开生活计划…</p>}><Routes><Route path="/home" element={<HomePage key={id} account={account} sync={syncNow} onEditing={setEditing} />} /><Route path="/tasks" element={<TasksPage key={id} account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/schedule" element={<SchedulePage account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/diary" element={<DiaryPage account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/dishes" element={<DishesPage account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/inventory" element={<InventoryHome />} />
               <Route path="/inventory/items" element={<InventoryPage account={account} sync={syncNow} onEditing={setEditing} />} />
+              <Route path="/egg-history" element={<EggHistoryPage key={id} account={account} onEditing={setEditing} />} />
               <Route path="/shopping" element={<ShoppingPage account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="*" element={<Navigate to="/home" replace />} /></Routes></Suspense>
           </>}
