@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { eggDraftSchema, IMAGE_LIMIT, type EggDraft, type EggEntry, type EggMedia } from '../../../shared/egg';
-import { api } from '../../data/api';
+import { readEgg, writeEgg } from '../../data/eggs';
 import type { Account } from '../../data/store';
 import { Modal } from '../planner/PlannerUi';
 import { imageMime, mediaSource, readMedia } from './media';
@@ -12,7 +12,7 @@ export function EggDialog({ account, ownerId, entryId, onClose, onEditing }: { a
   const [entry, setEntry] = useState<EggEntry | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(''), [editing, setEditing] = useState(false), [reload, setReload] = useState(0);
   useEffect(() => {
     let active = true;
-    void api<{ entry: EggEntry | null }>(entryId ? `/api/v1/eggs/${encodeURIComponent(entryId)}` : `/api/v1/eggs/latest?owner=${encodeURIComponent(ownerId ?? account.identity.user.id)}`).then(result => { if (active) { setEntry(result.entry); setError(''); } }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : '无法读取彩蛋'); }).finally(() => { if (active) setLoading(false); });
+    void readEgg(account.identity.user.id, ownerId, entryId).then(result => { if (active) { setEntry(result.entry); setError(''); } }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : '无法读取彩蛋'); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [account.identity.user.id, ownerId, entryId, reload]);
   useEffect(() => { onEditing(true); return () => onEditing(false); }, [onEditing]);
@@ -54,7 +54,7 @@ function EggEditor({ account, ownerId, initial, onCancel, onSaved, onHistory }: 
     setSaving(true); setError('');
     const body = JSON.stringify(parsed.data);
     if (request.current?.body !== body) request.current = { body, id: crypto.randomUUID() };
-    try { const result = await api<{ entry: EggEntry }>('/api/v1/eggs', { id: request.current.id, ownerId, draft: parsed.data }, account.identity.user.id); if (alive.current) onSaved(result.entry); }
+    try { const result = await writeEgg<{ entry: EggEntry }>(account.identity.user.id, '/api/v1/eggs', { id: request.current.id, ownerId, draft: parsed.data }); if (alive.current) onSaved(result.entry); }
     catch (reason) { if (alive.current) setError(reason instanceof Error ? reason.message : '保存失败，请重试'); }
     finally { if (alive.current) setSaving(false); }
   }

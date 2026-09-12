@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { EggHistory, EggSummary } from '../../../shared/egg';
-import { api } from '../../data/api';
+import type { EggSummary } from '../../../shared/egg';
+import { readEggHistory, writeEgg } from '../../data/eggs';
 import type { Account } from '../../data/store';
 import { Modal, PageHeading } from '../planner/PlannerUi';
 import { EggDialog } from './EggDialog';
@@ -12,9 +12,9 @@ export function EggHistoryPage({ account, onEditing }: { account: Account; onEdi
   const [selected, setSelected] = useState<string | null>(null), [reload, setReload] = useState(0);
   useEffect(() => {
     let active = true;
-    void api<EggHistory>('/api/v1/eggs').then(result => { if (active) { setEntries(result.entries); setCursor(result.nextCursor); setError(''); } }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : '历史记录读取失败'); }).finally(() => { if (active) setLoading(false); });
+    void readEggHistory(account.identity.user.id).then(result => { if (active) { setEntries(result.entries); setCursor(result.nextCursor); setError(''); } }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : '历史记录读取失败'); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [reload]);
+  }, [account.identity.user.id, reload]);
   useEffect(() => {
     if (!deleting) return;
     onEditing(true);
@@ -24,7 +24,7 @@ export function EggHistoryPage({ account, onEditing }: { account: Account; onEdi
     if (!deleting || removing) return;
     setRemoving(true); setDeleteError('');
     try {
-      await api(`/api/v1/eggs/${deleting.id}/delete`, {}, account.identity.user.id);
+      await writeEgg(account.identity.user.id, `/api/v1/eggs/${deleting.id}/delete`, {});
       setEntries(current => current.filter(item => item.id !== deleting.id)); setDeleting(null);
     } catch (reason) { setDeleteError(reason instanceof Error ? reason.message : '删除失败，请重试'); }
     finally { setRemoving(false); }
@@ -32,7 +32,7 @@ export function EggHistoryPage({ account, onEditing }: { account: Account; onEdi
   async function more() {
     if (cursor === null || loading) return;
     setLoading(true); setError('');
-    try { const result = await api<EggHistory>(`/api/v1/eggs?before=${cursor}`); setEntries(current => [...current, ...result.entries.filter(value => !current.some(old => old.id === value.id))]); setCursor(result.nextCursor); }
+    try { const result = await readEggHistory(account.identity.user.id, cursor); setEntries(current => [...current, ...result.entries.filter(value => !current.some(old => old.id === value.id))]); setCursor(result.nextCursor); }
     catch (reason) { setError(reason instanceof Error ? reason.message : '历史记录读取失败'); }
     finally { setLoading(false); }
   }

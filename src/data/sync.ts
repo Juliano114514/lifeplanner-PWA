@@ -1,5 +1,6 @@
 import type { Identity, Snapshot, Task, UserProfile } from '../../shared/contracts';
 import { api, ApiFailure } from './api';
+import { invalidateEggs } from './eggs';
 import { acknowledge, mergeSnapshot, readAccount, saveIdentity, updateAccount } from './store';
 import { acknowledgePlanner, mergePlanner } from './store';
 import type { PlannerData } from '../../shared/planner';
@@ -8,6 +9,7 @@ const running = new Map<string, Promise<void>>();
 export function synchronize(id: string): Promise<void> {
   const existing = running.get(id);
   if (existing) return existing;
+  invalidateEggs();
   const run = async () => {
     const identity = await api<Identity>('/api/v1/me');
     if (identity.user.id !== id) throw new ApiFailure(401, { error: 'ACCOUNT_CHANGED', message: '账号已改变，请刷新页面后继续' });
