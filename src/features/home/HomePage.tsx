@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Account } from '../../data/store';
 import { RecentTodos } from '../planner/RecentTodos';
 import { EggDialog } from '../egg/EggDialog';
@@ -14,6 +14,13 @@ export function HomePage({ account, sync, onEditing }: { account: Account; sync:
   const userId = account.identity.user.id;
   const [selected, setSelected] = useState(userId), [birthday, setBirthday] = useState<string | null>(null), [now, setNow] = useState(Date.now);
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(timer); }, []);
+  const clicks = useRef({ id: '', count: 0, at: 0 });
+  function tapAvatar(id: string) {
+    const at = performance.now(), previous = clicks.current;
+    const count = previous.id === id && at - previous.at <= 1000 ? previous.count + 1 : 1;
+    clicks.current = { id, count, at };
+    if (count === 5) { clicks.current = { id: '', count: 0, at: 0 }; setBirthday(id); }
+  }
   const members = [account.identity.user, ...account.identity.members.filter(member => member.id !== userId)];
   const name = account.profile?.name || account.identity.user.name;
   return <section className="welcome home-page"><p className="eyebrow">JUST THE TWO OF US</p><h1>{name}，今天打算做什么？</h1>
@@ -22,8 +29,8 @@ export function HomePage({ account, sync, onEditing }: { account: Account; sync:
       const displayName = profile?.name || member.name;
       const updatedAt = member.lastSyncAt ?? 0;
       return <div className={`home-profile ${selected === member.id ? 'selected' : ''}`} key={member.id}>
-        <button type="button" className="avatar home-avatar-trigger" aria-label={`打开${displayName}的彩蛋`} onClick={() => setBirthday(member.id)}>{profile?.avatar ? <img src={profile.avatar} alt="" /> : displayName.slice(0, 1)}</button>
-        <button type="button" className="home-profile-select" onClick={() => setSelected(member.id)} aria-pressed={selected === member.id} aria-label={`查看${displayName}的待办`}>
+        <button type="button" className="avatar home-avatar-trigger" aria-label={`连续点击五次打开${displayName}的彩蛋`} onClick={() => tapAvatar(member.id)}>{profile?.avatar ? <img src={profile.avatar} alt="" /> : displayName.slice(0, 1)}</button>
+        <button type="button" className="home-profile-select" onClick={() => { clicks.current = { id: '', count: 0, at: 0 }; setSelected(member.id); }} aria-pressed={selected === member.id} aria-label={`查看${displayName}的待办`}>
           <span className="home-profile-copy"><span className="home-profile-name"><strong>{displayName}</strong><small>最近同步：{updatedLabel(updatedAt, now, account.identity.timeZone)}</small></span><small>{profile?.bio?.trim() || '认真记录日常，慢慢享受生活。'}</small></span>
           <span className="task-checkbox" aria-hidden="true">{selected === member.id ? '✓' : ''}</span>
         </button>
