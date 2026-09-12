@@ -1,23 +1,8 @@
+@import url('./theme-light.css');
+@import url('./theme-dark.css');
 :root {
-  --canvas:#f7f9f7;
-  --sidebar:#eef5ef;
-  --paper:#fff;
-  --surface-soft:#e9efea;
-  --accent:#b7f4cf;
-  --accent-dark:#167a45;
-  --accent-deep:#0b5c32;
-  --secondary:#3b6473;
-  --secondary-soft:#d6e5ea;
-  --warning:#805600;
-  --warning-soft:#ffdea1;
-  --error:#ba1a1a;
-  --error-soft:#ffdad6;
-  --ink:#18251d;
-  --muted:#66736a;
-  --line:#dbe4dc;
   --radius:20px;
   --radius-sm:12px;
   --radius-control:16px;
   --font:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-  color-scheme:light
 }

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { Status, Task } from '../../../shared/contracts';
-import { today } from '../../../shared/domain';
+import { addDays, localDateTime, today } from '../../../shared/domain';
 import type { ScheduleBlock } from '../../../shared/planner';
 import { enqueue, enqueuePlanner, materialize, materializePlanner, type Account } from '../../data/store';
-import { Badge, DateNavigator, formatMinute, Modal, PageHeading } from '../planner/PlannerUi';
+import { Badge, dateLabel, DateNavigator, formatMinute, Modal, PageHeading } from '../planner/PlannerUi';
 
 interface Draft { id: string; title: string; note: string; startMinute: number; endMinute: number; taskId: string | null; occurrenceDate: string | null; source: 'MANUAL' | 'QUICK_PLAN'; quickPlanSlot: string | null }
 const emptyDraft = (_date: string, startMinute = 9 * 60): Draft => ({ id: crypto.randomUUID(), title: '', note: '', startMinute, endMinute: Math.min(startMinute + 60, 1440), taskId: null, occurrenceDate: null, source: 'MANUAL', quickPlanSlot: null });
@@ -21,13 +21,24 @@ export function SchedulePage({ account, sync, onEditing }: { account: Account; s
     return task ? { ...emptyDraft(search.get('date') ?? today(zone)), title: task.title, note: task.note, taskId, occurrenceDate: search.get('date') ?? today(zone) } : null;
   });
   const [wizard, setWizard] = useState(false);
+  const [planChoice, setPlanChoice] = useState<string | null>(null);
   const [error, setError] = useState('');
   const planner = materializePlanner(account);
   const tasks = materialize(account);
   const blocks = planner.schedules.filter(value => value.date === date && !value.isArchived).sort((a, b) => a.startMinute - b.startMinute);
   const recorded = new Set(planner.schedules.filter(value => !value.isArchived).map(value => value.date));
   const conflicts = useMemo(() => new Set(blocks.filter((block, index) => blocks.some((other, otherIndex) => index !== otherIndex && block.startMinute < other.endMinute && other.startMinute < block.endMinute)).map(value => value.id)), [blocks]);
-  useEffect(() => { onEditing(editor !== null || wizard); return () => onEditing(false); }, [editor, wizard, onEditing]);
+  useEffect(() => { onEditing(editor !== null || wizard || planChoice !== null); return () => onEditing(false); }, [editor, wizard, planChoice, onEditing]);
+  function startPlan(target: string) {
+    setDate(target); setSearch({ date: target }, { replace: true }); setPlanChoice(null); setWizard(true);
+  }
+  function quickPlan() {
+    const now = Date.now(), current = today(zone, now);
+    const hour = Number(localDateTime(now, zone).slice(11, 13));
+    if (hour >= 18) startPlan(addDays(current, 1));
+    else if (hour >= 12) setPlanChoice(current);
+    else startPlan(current);
+  }
   function beginEdit(value: Draft | null) { setEditor(value); }
   async function run(operation: Parameters<typeof enqueuePlanner>[1]) {
     try { await enqueuePlanner(account.identity.user.id, operation); setError(''); sync(); }
@@ -45,7 +56,8 @@ export function SchedulePage({ account, sync, onEditing }: { account: Account; s
   return <>
     <PageHeading title="一日安排" action={<button className="primary" onClick={() => beginEdit(emptyDraft(date))}>新增日程<span>＋</span></button>} />
     <DateNavigator date={date} zone={zone} recorded={recorded} onChange={value => { setDate(value); setSearch({ date: value }, { replace: true }); }} />
-    <div className="page-actions"><button className="secondary" onClick={() => setWizard(true)}>✦ 快速向导</button></div>
+    <div className="page-actions"><button className="secondary" onClick={quickPlan}>✦ 快速规划</button></div>
+    {planChoice && <Modal title="是否是规划明日计划？" onClose={() => setPlanChoice(null)}><div className="plan-date-actions"><button className="primary" onClick={() => startPlan(addDays(planChoice, 1))}>规划明天（{dateLabel(addDays(planChoice, 1))}）</button><button className="secondary" onClick={() => startPlan(planChoice)}>规划今天（{dateLabel(planChoice)}）</button></div></Modal>}
     {error && <p className="notice error-text" role="alert">{error}</p>}
     <section className="timeline" aria-label={`${date} 日程时间轴`}>{Array.from({ length: 24 }, (_, hour) => {
       const hourBlocks = blocks.filter(value => Math.floor(value.startMinute / 60) === hour);

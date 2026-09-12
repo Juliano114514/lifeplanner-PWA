@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Operation, Task } from '../../../shared/contracts';
+import type { ScheduleBlock } from '../../../shared/planner';
 import { ensureOperation, localDateTime, needsEnsure, organize, today } from '../../../shared/domain';
 import { enqueue, enqueuePlanner, loadDraft, materialize, materializePlanner, resolveConflict, type Account, type EditorDraft } from '../../data/store';
 import { Badge, formatMinute, PageHeading } from '../planner/PlannerUi';
@@ -76,6 +77,15 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
     }
     catch (reason) { setError(reason instanceof Error ? reason.message : '日程操作失败'); }
   }
+  function scheduleCard(block: ScheduleBlock) {
+    const completed = block.status === 'COMPLETED';
+    return <article className={`task-card planned-task-card ${completed ? 'is-done' : ''}`} key={block.id}>
+      <div className="task-overview"><span className="avatar task-avatar" aria-hidden="true">{ownerAvatar(block.createdBy) ? <img src={ownerAvatar(block.createdBy)} alt="" /> : ownerName(block.createdBy).slice(0, 1)}</span>
+        <div className="task-body"><button className="task-title" onClick={() => navigate(`/schedule?date=${date}`)}>{block.title}</button><div className="metadata"><span className={`owner ${block.createdBy === userId ? '' : 'other'}`}>{ownerName(block.createdBy)}</span><span>{formatMinute(block.startMinute)}–{formatMinute(block.endMinute)}</span></div></div>
+        <input className="task-checkbox" type="checkbox" checked={completed} aria-label={`完成日程：${block.title}`} onChange={() => void toggleSchedule(block.id, completed)} />
+      </div><div className="task-extra">{block.note && <p className="task-note">{block.note}</p>}<Badge tone={completed ? 'success' : 'neutral'}>{completed ? '已完成' : block.taskId ? '任务' : block.source === 'QUICK_PLAN' ? '快速安排' : '手动'}</Badge></div>
+    </article>;
+  }
   return <>
     <PageHeading title="任务计划" action={<button className="primary desktop-add" onClick={() => edit()}>新增任务<span>＋</span></button>} />
     <div className="filter-row"><div className="segmented" aria-label="任务归属筛选">{[['all', '全部'], ['mine', '我的'], ['other', '对方的']].map(([value, label]) =>
@@ -96,11 +106,10 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
       {visible.filter(t => t.isArchived).map(t => <article className="task-card" key={t.id}><div><h3>{t.title}</h3><p className="muted">{ownerName(t.ownerId)} · 已归档</p></div></article>)}
       {!visible.some(t => t.isArchived) && <p className="empty">还没有归档的任务。</p>}</section>
       : groupKeys.map(key => <div className="task-group" key={key}>{key === 'todayCompleted' && pendingSchedules.length > 0 && <section className="task-section"><div className="section-heading"><h2>今日日程</h2><span>{pendingSchedules.length}</span></div>
-        {pendingSchedules.map(block => <article className="task-card schedule-task-card" key={block.id}><button className="completion" onClick={() => void toggleSchedule(block.id, false)} aria-label={`完成日程：${block.title}`} />
-          <button className="task-body card-main" onClick={() => navigate(`/schedule?date=${date}`)}><strong>{block.title}</strong><span>{formatMinute(block.startMinute)}–{formatMinute(block.endMinute)}</span>{block.note && <p>{block.note}</p>}</button><Badge>{block.taskId ? '任务' : block.source === 'QUICK_PLAN' ? '快速安排' : '手动'}</Badge></article>)}</section>}
+        {pendingSchedules.map(scheduleCard)}</section>}
         <section className="task-section">
         <div className="section-heading"><h2><span className={`section-dot ${key}`} />{groupNames[key]}</h2><span>{groups[key].length.toString().padStart(2, '0')}</span></div>
-        {key === 'todayCompleted' && completedSchedules.map(block => <article className="task-card schedule-task-card is-done" key={block.id}><button className="completion" onClick={() => void toggleSchedule(block.id, true)} aria-label={`恢复日程：${block.title}`}>✓</button><button className="task-body card-main" onClick={() => navigate(`/schedule?date=${date}`)}><strong>{block.title}</strong><span>{formatMinute(block.startMinute)}–{formatMinute(block.endMinute)}</span></button><Badge tone="success">已完成</Badge></article>)}
+        {key === 'todayCompleted' && completedSchedules.map(scheduleCard)}
         {groups[key].map(({ task, occurrence }) => <article className={`task-card planned-task-card ${occurrence?.status === 'COMPLETED' ? 'is-done' : ''}`} key={task.id}>
           <div className="task-overview">
           <span className="avatar task-avatar" aria-hidden="true">{ownerAvatar(task.ownerId) ? <img src={ownerAvatar(task.ownerId)} alt="" /> : ownerName(task.ownerId).slice(0, 1)}</span>
