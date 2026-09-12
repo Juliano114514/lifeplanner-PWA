@@ -1451,8 +1451,8 @@ input,select,textarea { accent-color:var(--accent-dark) }
 .egg-history button { display:flex;flex-direction:column;gap:6px;width:100%;text-align:left;padding:4px;overflow-wrap:anywhere }
 .egg-history small { color:var(--muted);white-space:pre-wrap }
 
-.home-members .home-profile { padding:0;position:relative;gap:0 }
-.home-avatar-trigger { touch-action:manipulation;user-select:none;position:absolute;left:16px;top:50%;transform:translateY(-50%);z-index:1 }
+.home-members .home-profile { padding:0;position:relative;gap:0;touch-action:manipulation;user-select:none }
+.home-profile-avatar { position:absolute;left:16px;top:50%;transform:translateY(-50%);z-index:1 }
 .home-profile-select { display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;width:100%;padding:16px 16px 16px 86px;min-height:88px;text-align:left }
 .home-profile.selected .task-checkbox { background:var(--accent-dark);border-color:var(--accent-dark);color:var(--on-accent);font-size:20px;line-height:1 }
 .egg-history-item { touch-action:pan-y;-webkit-touch-callout:none;user-select:none }
