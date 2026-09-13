@@ -4,6 +4,7 @@ import { tasksRoute } from './tasks';
 import { plannerRoute } from './planner';
 import { syncStatusRoute } from './sync-status';
 import { eggRoute } from './egg';
+import { placesRoute } from './places';
 import { profileRoute } from './profile';
 
 export default {
@@ -16,7 +17,7 @@ export default {
       if (auth) return auth;
       const person = await identity(request, env);
       if (path === '/api/v1/me' && request.method === 'GET') return json(person);
-      return await syncStatusRoute(request, env, person) ?? await eggRoute(request, env, person) ?? await profileRoute(request, env, person) ?? await tasksRoute(request, env, person) ?? await plannerRoute(request, env, person) ?? json({ error: 'NOT_FOUND', message: '接口不存在' }, 404);
+      return await placesRoute(request, env, person) ?? await syncStatusRoute(request, env, person) ?? await eggRoute(request, env, person) ?? await profileRoute(request, env, person) ?? await tasksRoute(request, env, person) ?? await plannerRoute(request, env, person) ?? json({ error: 'NOT_FOUND', message: '接口不存在' }, 404);
     } catch (error) {
       if (error instanceof HttpError) return json({ error: error.code, message: error.message }, error.status);
       // Never log OAuth payloads, session tokens, diary/task content or raw D1 errors.

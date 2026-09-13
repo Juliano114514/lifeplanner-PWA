@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { wishDraftSchema, type Wish } from './wish';
 import { dateSchema, statusSchema, type Status } from './contracts';
 
 export type ScheduleSource = 'MANUAL' | 'QUICK_PLAN';
@@ -27,7 +28,7 @@ export interface ShoppingEntry {
   createdAt: number; purchasedAt: number | null;
 }
 export interface PlannerData {
-  version: number; schedules: ScheduleBlock[]; diaryDays: DiaryDay[]; stocks: StockItem[]; shopping: ShoppingEntry[];
+  version: number; wishes: Wish[]; schedules: ScheduleBlock[]; diaryDays: DiaryDay[]; stocks: StockItem[]; shopping: ShoppingEntry[];
 }
 
 const nullableNumber = z.number().finite().nonnegative().nullable();
@@ -51,6 +52,10 @@ const stockDraftSchema = z.object({
   expiryDate: dateSchema.nullable(), expiryWarningDays: z.number().int().min(0).max(365),
 }).strict();
 export const plannerOperationSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('saveWish'), draft: wishDraftSchema }).strict(),
+  z.object({ type: z.literal('wishPin'), id: z.uuid(), pinned: z.boolean() }).strict(),
+  z.object({ type: z.literal('wishStatus'), id: z.uuid(), status: z.enum(['PENDING', 'COMPLETED']) }).strict(),
+  z.object({ type: z.literal('archiveWish'), id: z.uuid() }).strict(),
   z.object({ type: z.literal('saveSchedule'), draft: scheduleDraftSchema }).strict(),
   z.object({ type: z.literal('scheduleStatus'), id: z.uuid(), status: statusSchema }).strict(),
   z.object({ type: z.literal('archiveSchedule'), id: z.uuid() }).strict(),
@@ -68,7 +73,8 @@ export const plannerCommandSchema = z.object({
 }).strict();
 export type PlannerCommand = z.infer<typeof plannerCommandSchema>;
 
-export const emptyPlanner = (): PlannerData => ({ version: 0, schedules: [], diaryDays: [], stocks: [], shopping: [] });
+export const emptyPlanner = (): PlannerData => ({ version: 0, wishes: [], schedules: [], diaryDays: [], stocks: [], shopping: [] });
+export const normalizePlanner = (data: PlannerData): PlannerData => ({ ...data, wishes: data.wishes ?? [] });
 export const needsRestock = (item: StockItem) => item.trackingMode === 'STATUS'
   ? item.currentStatus === 'MISSING' || item.currentStatus === 'LOW'
   : item.currentAmount !== null && item.replenishThreshold !== null && item.currentAmount <= item.replenishThreshold;
@@ -89,9 +95,34 @@ function reconcileShopping(data: PlannerData, actor: string, now: number): void 
 }
 
 export function applyPlannerCommand(current: PlannerData | null, command: PlannerCommand, actor: string, now: number): PlannerData {
-  const data = current ? structuredClone(current) : emptyPlanner();
+  const data = current ? structuredClone(normalizePlanner(current)) : emptyPlanner();
   const op = command.operation;
   switch (op.type) {
+    case 'saveWish': {
+      const draft = wishDraftSchema.parse(op.draft);
+      const previous = data.wishes.find(value => value.id === draft.id);
+      if (previous?.isArchived) throw new Error('愿望已归档');
+      const next: Wish = { ...draft, isPinned: previous?.isPinned ?? false, isArchived: false,
+        status: previous?.status ?? 'PENDING', completedAt: previous?.completedAt ?? null,
+        createdBy: previous?.createdBy ?? actor, createdAt: previous?.createdAt ?? now,
+        updatedBy: actor, updatedAt: now, history: previous?.history ?? [] };
+      data.wishes = data.wishes.filter(value => value.id !== next.id).concat(next);
+      break;
+    }
+    case 'wishPin':
+    case 'wishStatus':
+    case 'archiveWish': {
+      const wish = data.wishes.find(value => value.id === op.id && !value.isArchived);
+      if (!wish) throw new Error('愿望不存在或已归档');
+      if (op.type === 'wishPin') wish.isPinned = op.pinned;
+      else if (op.type === 'archiveWish') wish.isArchived = true;
+      else if (wish.status !== op.status) {
+        wish.status = op.status; wish.completedAt = op.status === 'COMPLETED' ? now : null;
+        wish.history.push({ id: command.mutationId, status: op.status, actor, at: now });
+      }
+      wish.updatedBy = actor; wish.updatedAt = now;
+      break;
+    }
     case 'saveSchedule': {
       const previous = data.schedules.find(value => value.id === op.draft.id);
       const next: ScheduleBlock = { ...op.draft, status: previous?.status ?? 'PENDING', completedAt: previous?.completedAt ?? null,

@@ -1456,3 +1456,18 @@ input,select,textarea { accent-color:var(--accent-dark) }
 .home-profile-select { display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;width:100%;padding:16px 16px 16px 86px;min-height:88px;text-align:left }
 .home-profile.selected .task-checkbox { background:var(--accent-dark);border-color:var(--accent-dark);color:var(--on-accent);font-size:20px;line-height:1 }
 .egg-history-item { touch-action:pan-y;-webkit-touch-callout:none;user-select:none }
+
+/* Wishes share the task-card layout; long addresses must not squeeze the checkbox. */
+.wish-title-row { display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;min-width:0 }
+.wish-title-row .task-title,.wish-address { overflow-wrap:anywhere;min-width:0 }
+.wish-address { font-size:12px;color:var(--muted);text-decoration:none }
+.wish-address[href]:hover { text-decoration:underline }
+.wish-card .task-body { min-width:0 }
+.wish-editor-fields { border:0;padding:0;margin:0;min-width:0 }
+.wish-place-results { list-style:none;margin:8px 0;padding:0;display:grid;gap:6px }
+.wish-place-results button { width:100%;text-align:left;white-space:normal;overflow-wrap:anywhere }
+@media(max-width:640px) {
+  .sidebar nav a { padding-inline:2px }
+  .sidebar nav a>span { max-width:100% }
+  .wish-title-row .wish-address { flex-basis:100% }
+}

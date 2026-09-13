@@ -175,3 +175,5 @@ API 和 Android 字段映射见 [同步契约](docs/sync-contract.md)。Android 
 参考：[Cloudflare React 部署](https://developers.cloudflare.com/workers/framework-guides/web-apps/react/)、[D1 命令](https://developers.cloudflare.com/d1/wrangler-commands/)、[GitHub OAuth](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)、[WebKit 存储策略](https://webkit.org/blog/14403/updates-to-storage-policy/)。
 
 彩蛋编辑、历史记录与新增数据库迁移见 [彩蛋说明](docs/easter-eggs.md)。
+
+愿望清单、免费地点搜索配置、迁移顺序及待执行验收见 [愿望说明](docs/wishes.md)。

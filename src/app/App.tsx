@@ -15,9 +15,13 @@ const InventoryPage = lazy(() => import('../features/inventory/InventoryPages').
 const InventoryHome = lazy(() => import('../features/inventory/InventoryPages').then(module => ({ default: module.InventoryHome })));
 const ShoppingPage = lazy(() => import('../features/inventory/InventoryPages').then(module => ({ default: module.ShoppingPage })));
 
+const WishesHome = lazy(() => import('../features/wishes/WishesPage').then(module => ({ default: module.WishesHome })));
+const WishesPage = lazy(() => import('../features/wishes/WishesPage').then(module => ({ default: module.WishesPage })));
+
 const tabs = [
   { path: 'home', label: '首页', icon: '⌂' },
   { path: 'tasks', label: '任务', icon: '✓' }, { path: 'schedule', label: '日程', icon: '▦' },
+  { path: 'wishes', label: '愿望', icon: '♡' },
   { path: 'diary', label: '日记', icon: '▤' },
   { path: 'inventory', label: '库存', icon: '▣' },
 ];
@@ -131,11 +135,13 @@ export function App() {
               waiting.postMessage({ type: 'ACTIVATE' });
             }}>{editing || profileOpen ? '关闭编辑页后更新' : '更新应用'}</button></div>}
             {profileOpen && <ProfileDialog key={id} account={account} onClose={() => setProfileOpen(false)} sync={syncNow} />}
-            {account.plannerConflict && <section className="conflict" role="alert"><p className="eyebrow">需要你来决定</p><h3>共享生活记录有不同版本</h3><p>{account.plannerConflict.message}</p><p className="hint">日程、日记、菜品、库存和采购属于同一原子版本；任务不受这次选择影响。</p><div className="actions"><button onClick={() => void choosePlannerConflict('cloud')}>采用云端，放弃本机修改</button><button onClick={() => void choosePlannerConflict('local')}>在云端最新版上重放本机修改</button></div></section>}
+            {account.plannerConflict && <section className="conflict" role="alert"><p className="eyebrow">需要你来决定</p><h3>共享生活记录有不同版本</h3><p>{account.plannerConflict.message}</p><p className="hint">日程、愿望、日记、菜品、库存和采购属于同一原子版本；任务不受这次选择影响。</p><div className="actions"><button onClick={() => void choosePlannerConflict('cloud')}>采用云端，放弃本机修改</button><button onClick={() => void choosePlannerConflict('local')}>在云端最新版上重放本机修改</button></div></section>}
             <Suspense fallback={<p className="empty">正在打开生活计划…</p>}><Routes><Route path="/home" element={<HomePage key={id} account={account} sync={syncNow} onEditing={setEditing} />} /><Route path="/tasks" element={<TasksPage key={id} account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/schedule" element={<SchedulePage account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/diary" element={<DiaryPage account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/dishes" element={<DishesPage account={account} sync={syncNow} onEditing={setEditing} />} />
+              <Route path="/wishes" element={<WishesHome />} />
+              <Route path="/wishes/:kind" element={<WishesPage key={location.pathname} account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/inventory" element={<InventoryHome />} />
               <Route path="/inventory/items" element={<InventoryPage account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/egg-history" element={<EggHistoryPage key={id} account={account} onEditing={setEditing} />} />

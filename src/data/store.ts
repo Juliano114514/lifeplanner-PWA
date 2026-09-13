@@ -1,7 +1,7 @@
 import { openDB, type DBSchema } from 'idb';
 import { profileSchema, type Command, type Identity, type Operation, type Task, type TaskDraft, type UserProfile } from '../../shared/contracts';
 import { applyCommand } from '../../shared/domain';
-import { applyPlannerCommand, emptyPlanner, type PlannerCommand, type PlannerData, type PlannerOperation } from '../../shared/planner';
+import { applyPlannerCommand, emptyPlanner, normalizePlanner, type PlannerCommand, type PlannerData, type PlannerOperation } from '../../shared/planner';
 
 export interface Pending { command: Command; at: number; preview: Task }
 export interface Conflict { current: Task | null; message: string }
@@ -37,8 +37,8 @@ function normalizeAccount(account: Account | undefined): Account | undefined {
   const profile = profilePending ? account.profile : account.identity.user.profile;
   const user = profile ? { ...account.identity.user, name: profile.name, profile } : account.identity.user;
   const identity = { ...account.identity, user, members: account.identity.members.map(member => member.id === user.id ? user : member) };
-  return { ...account, identity, profile, profilePending, plannerBase: account.plannerBase ?? emptyPlanner(), plannerPending: account.plannerPending ?? [],
-    plannerConflict: account.plannerConflict ?? null };
+  return { ...account, identity, profile, profilePending, plannerBase: normalizePlanner(account.plannerBase ?? emptyPlanner()), plannerPending: (account.plannerPending ?? []).map(value => ({ ...value, preview: normalizePlanner(value.preview) })),
+    plannerConflict: account.plannerConflict ? { ...account.plannerConflict, current: normalizePlanner(account.plannerConflict.current) } : null };
 }
 export async function saveProfile(id: string, profile: UserProfile): Promise<void> {
   const parsed = profileSchema.parse(profile);
@@ -140,10 +140,10 @@ export async function resolveConflict(id: string, taskId: string, choice: 'cloud
   });
 }
 export function materializePlanner(account: Account): PlannerData {
-  let planner = structuredClone(account.plannerBase ?? emptyPlanner());
+  let planner = structuredClone(normalizePlanner(account.plannerBase ?? emptyPlanner()));
   for (const pending of account.plannerPending ?? []) {
     try { planner = applyPlannerCommand(planner, pending.command, account.identity.user.id, pending.at); }
-    catch { planner = structuredClone(pending.preview); }
+    catch { planner = structuredClone(normalizePlanner(pending.preview)); }
   }
   return planner;
 }
@@ -160,12 +160,12 @@ export async function acknowledgePlanner(id: string, mutationId: string, planner
   await updateAccount(id, account => {
     if (!account.plannerPending.some(value => value.command.mutationId === mutationId)) return;
     account.plannerPending = account.plannerPending.filter(value => value.command.mutationId !== mutationId);
-    account.plannerBase = planner;
+    account.plannerBase = normalizePlanner(planner);
   });
 }
 export async function mergePlanner(id: string, planner: PlannerData): Promise<void> {
   await updateAccount(id, account => {
-    if (!account.plannerPending.length && !account.plannerConflict && account.plannerBase.version <= planner.version) account.plannerBase = planner;
+    if (!account.plannerPending.length && !account.plannerConflict && account.plannerBase.version <= planner.version) account.plannerBase = normalizePlanner(planner);
     account.lastSync = Date.now();
   });
 }
@@ -175,7 +175,7 @@ export async function resolvePlannerConflict(id: string, choice: 'cloud' | 'loca
     if (!conflict) return;
     const old = account.plannerPending;
     account.plannerPending = [];
-    account.plannerBase = conflict.current;
+    account.plannerBase = normalizePlanner(conflict.current);
     account.plannerConflict = null;
     if (choice === 'cloud') return;
     let current = structuredClone(conflict.current);

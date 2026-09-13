@@ -1,5 +1,7 @@
 export interface Env {
   DB: D1Database;
+  PLACE_SEARCH_ENABLED?: string;
+  PLACE_SEARCH_URL?: string;
   APP_ORIGIN: string;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
