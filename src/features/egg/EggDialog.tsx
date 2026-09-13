@@ -10,24 +10,32 @@ import { useRecording } from './useRecording';
 export function EggDialog({ account, ownerId, entryId, onClose, onEditing }: { account: Account; ownerId?: string; entryId?: string; onClose: () => void; onEditing: (value: boolean) => void }) {
   const navigate = useNavigate();
   const [entry, setEntry] = useState<EggEntry | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(''), [editing, setEditing] = useState(false), [reload, setReload] = useState(0);
+  const [editRequested, setEditRequested] = useState(false);
+  const [choosing, setChoosing] = useState(false), [creating, setCreating] = useState(false);
   useEffect(() => {
     let active = true;
-    void readEgg(account.identity.user.id, ownerId, entryId).then(result => { if (active) { setEntry(result.entry); setError(''); } }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : '无法读取彩蛋'); }).finally(() => { if (active) setLoading(false); });
+    void readEgg(account.identity.user.id, editRequested ? account.identity.user.id : ownerId, editRequested ? undefined : entryId).then(result => { if (active) { setEntry(result.entry); setError(''); if (editRequested) setEditing(true); } }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : '无法读取彩蛋'); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [account.identity.user.id, ownerId, entryId, reload]);
+  }, [account.identity.user.id, ownerId, entryId, reload, editRequested]);
   useEffect(() => { onEditing(true); return () => onEditing(false); }, [onEditing]);
-  const author = entry?.authorName ?? account.identity.members.find(member => member.id === ownerId)?.name ?? account.identity.user.name;
-  if (editing) return <EggEditor account={account} ownerId={entry?.ownerId ?? ownerId ?? account.identity.user.id} initial={entry} onHistory={() => { onClose(); navigate('/egg-history'); }} onCancel={() => setEditing(false)} onSaved={value => { setEntry(value); setEditing(false); }} />;
+  const author = entry?.authorName ?? account.identity.members.find(member => member.id === (editRequested ? account.identity.user.id : ownerId))?.name ?? account.identity.user.name;
+  if (editing) return <EggEditor account={account} initial={creating ? null : entry} onHistory={() => { onClose(); navigate('/egg-history'); }} onCancel={() => setEditing(false)} onSaved={value => { setEntry(value); setEditing(false); }} />;
+  if (choosing) return <Modal title="我也要写" onClose={() => setChoosing(false)}>
+    <div className="editor-footer">
+      <button type="button" className="secondary" onClick={() => { setChoosing(false); setCreating(false); setLoading(true); setEditRequested(true); setReload(value => value + 1); }}>修改</button>
+      <button type="button" className="primary" onClick={() => { setChoosing(false); setCreating(true); setEditing(true); }}>新建</button>
+    </div>
+  </Modal>;
   return <Modal title={`${author}说`} onClose={onClose}>
     {loading ? <p role="status">正在打开彩蛋…</p> : error ? <p className="notice error-text" role="alert">{error}<button className="text-button" onClick={() => { setLoading(true); setReload(value => value + 1); }}>重试</button></p> : (entry?.text || entry?.image || entry?.audio) ? <div className="egg-content">{entry.text && <p className="egg-text">{entry.text}</p>}
       {entry?.image && <img className="egg-image" src={mediaSource(entry.image)} alt={entry.image.name} />}
       {entry?.audio && <audio controls preload="metadata" src={mediaSource(entry.audio)}>当前浏览器不支持音频播放。</audio>}
     </div> : null}
     <div className="plan-date-actions"><button className="primary" onClick={onClose}>确定</button></div>
-    <button className="text-button egg-footer-link" disabled={loading || !!error} onClick={() => setEditing(true)}>我也要写</button>
+    <button className="text-button egg-footer-link" disabled={loading || !!error} onClick={() => setChoosing(true)}>我也要写</button>
   </Modal>;
 }
-function EggEditor({ account, ownerId, initial, onCancel, onSaved, onHistory }: { account: Account; ownerId: string; initial: EggEntry | null; onCancel: () => void; onHistory: () => void; onSaved: (entry: EggEntry) => void }) {
+function EggEditor({ account, initial, onCancel, onSaved, onHistory }: { account: Account; initial: EggEntry | null; onCancel: () => void; onHistory: () => void; onSaved: (entry: EggEntry) => void }) {
   const [draft, setDraft] = useState<EggDraft>(() => ({ text: initial?.text ?? '', image: initial?.image ?? null, audio: initial?.audio ?? null }));
   const [error, setError] = useState(''), [saving, setSaving] = useState(false), [reading, setReading] = useState(false);
   const alive = useRef(true), request = useRef<{ body: string; id: string } | null>(null);
@@ -36,7 +44,7 @@ function EggEditor({ account, ownerId, initial, onCancel, onSaved, onHistory }: 
   const busy = saving || reading || recording.phase !== 'idle';
   async function upload(file?: File) {
     if (!file) return;
-    if (file.size > IMAGE_LIMIT) { setError('图片不能超过 2 MB，请缩小后再上传'); return; }
+    if (file.size > IMAGE_LIMIT) { setError('图片不能超过 10 MB，请缩小后再上传'); return; }
     if (file.name.length > 200) { setError('图片名称过长，请重命名后再上传'); return; }
     setReading(true); setError('');
     try {
@@ -50,11 +58,11 @@ function EggEditor({ account, ownerId, initial, onCancel, onSaved, onHistory }: 
   }
   async function save() {
     const parsed = eggDraftSchema.safeParse(draft);
-    if (!parsed.success) { setError('请至少填写一项内容，并检查文案长度、图片和录音'); return; }
+    if (!parsed.success) { setError(!draft.text.trim() && !draft.image && !draft.audio ? '请至少填写一项内容' : '内容校验失败，请检查文案长度、图片大小或重新录音'); return; }
     setSaving(true); setError('');
     const body = JSON.stringify(parsed.data);
     if (request.current?.body !== body) request.current = { body, id: crypto.randomUUID() };
-    try { const result = await writeEgg<{ entry: EggEntry }>(account.identity.user.id, '/api/v1/eggs', { id: request.current.id, ownerId, draft: parsed.data }); if (alive.current) onSaved(result.entry); }
+    try { const result = await writeEgg<{ entry: EggEntry }>(account.identity.user.id, '/api/v1/eggs', { id: request.current.id, ownerId: account.identity.user.id, draft: parsed.data }); if (alive.current) onSaved(result.entry); }
     catch (reason) { if (alive.current) setError(reason instanceof Error ? reason.message : '保存失败，请重试'); }
     finally { if (alive.current) setSaving(false); }
   }
@@ -64,7 +72,7 @@ function EggEditor({ account, ownerId, initial, onCancel, onSaved, onHistory }: 
   }
   return <Modal title="写一个彩蛋" onClose={() => { if (!saving) onCancel(); }}><form onSubmit={event => { event.preventDefault(); if (!busy) void save(); }}>
     <label>正文文案<textarea rows={4} maxLength={10000} disabled={saving} value={draft.text} onChange={event => setDraft(current => ({ ...current, text: event.target.value }))} /></label>
-    <label>图片（支持 GIF，最大 2 MB）<input type="file" accept="image/png,image/jpeg,image/gif,image/webp,.png,.jpg,.jpeg,.gif,.webp" disabled={saving || reading || recording.phase === 'recording' || recording.phase === 'finishing'} onClick={recording.cancelRequest} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void upload(file); }} /></label>
+    <label>图片（支持 GIF，最大 10 MB）<input type="file" accept="image/png,image/jpeg,image/gif,image/webp,.png,.jpg,.jpeg,.gif,.webp" disabled={saving || reading || recording.phase === 'recording' || recording.phase === 'finishing'} onClick={recording.cancelRequest} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void upload(file); }} /></label>
     {reading && <p role="status">正在读取图片…</p>}{draft.image && preview(draft.image, 'image')}
     <div className="egg-recording"><strong>录音（最多 15 秒）</strong><p role="status">{recording.phase === 'requesting' ? '正在等待麦克风授权，请查看系统提示；没有弹窗时可取消等待并检查权限设置。' : recording.phase === 'recording' ? `录音中 ${recording.seconds} / 15 秒` : recording.phase === 'finishing' ? '正在处理录音…' : '可主动停止，15 秒自动停止。'}</p>
       {recording.phase === 'requesting' ? <button type="button" className="text-button" onClick={recording.cancelRequest}>取消等待</button> : recording.phase === 'recording' ? <button type="button" className="secondary" onClick={recording.stop}>停止录音</button> : <button type="button" className="secondary" disabled={busy} onClick={() => void recording.start()}>{draft.audio ? '重新录音' : '开始录音'}</button>}

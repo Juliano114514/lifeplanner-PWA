@@ -1,5 +1,5 @@
 import type { Identity } from '../shared/contracts';
-import { eggSaveSchema, type EggEntry, type EggMedia, type EggSummary } from '../shared/egg';
+import { EGG_REQUEST_LIMIT, eggSaveSchema, type EggEntry, type EggMedia, type EggSummary } from '../shared/egg';
 import { config, hash, HttpError, json, readJson, requireOrigin, type Env } from './http';
 
 interface Row { seq: number; id: string; owner_id: string; deleted_at: number | null; author_id: string; author_name: string; created_at: number; text: string; media: string; request_hash: string }
@@ -44,10 +44,10 @@ export async function eggRoute(request: Request, env: Env, actor: Identity): Pro
     return json({ deleted: true });
   }
   if (url.pathname !== base) throw new HttpError(405, 'METHOD_NOT_ALLOWED', '不支持此操作');
-  const parsed = eggSaveSchema.safeParse(await readJson(request, 4300000));
+  const parsed = eggSaveSchema.safeParse(await readJson(request, EGG_REQUEST_LIMIT));
   if (!parsed.success) throw new HttpError(400, 'INVALID_EGG', '请检查文案、图片格式和大小、录音内容');
   const { id, draft } = parsed.data, ownerId = parsed.data.ownerId ?? actor.user.id, digest = await hash(JSON.stringify(draft));
-  if (!config(env).ids.includes(ownerId)) throw new HttpError(400, 'INVALID_OWNER', '成员无效');
+  if (ownerId !== actor.user.id) throw new HttpError(403, 'EGG_OWNER_REQUIRED', '只能编辑自己的彩蛋');
   async function previous() {
     const row = await env.DB.prepare('SELECT * FROM eggs WHERE id = ?').bind(id).first<Row>();
     if (row && (row.author_id !== actor.user.id || row.owner_id !== ownerId || row.request_hash !== digest)) throw new HttpError(409, 'SAVE_CONFLICT', '保存编号已使用，请重新打开编辑器');
