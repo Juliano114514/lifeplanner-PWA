@@ -1,4 +1,5 @@
 import type { Identity } from '../shared/contracts';
+import { today } from '../shared/domain';
 import { EGG_REQUEST_LIMIT, eggSaveSchema, type EggEntry, type EggMedia, type EggSummary } from '../shared/egg';
 import { config, hash, HttpError, json, readJson, requireOrigin, type Env } from './http';
 
@@ -51,7 +52,7 @@ export async function eggRoute(request: Request, env: Env, actor: Identity): Pro
   async function previous() {
     const row = await env.DB.prepare('SELECT * FROM eggs WHERE id = ?').bind(id).first<Row>();
     if (row && (row.author_id !== actor.user.id || row.owner_id !== ownerId || row.request_hash !== digest)) throw new HttpError(409, 'SAVE_CONFLICT', '保存编号已使用，请重新打开编辑器');
-    if (row?.deleted_at !== null && row?.deleted_at !== undefined) throw new HttpError(410, 'DELETED', '此彩蛋已删除，请重新打开编辑器');
+    if (row?.deleted_at !== null && row?.deleted_at !== undefined) throw new HttpError(410, 'DELETED', '此彩蛋已删除或被当天的新内容替换，请重新打开编辑器');
     return row;
   }
   const saved = await previous();
@@ -65,8 +66,14 @@ export async function eggRoute(request: Request, env: Env, actor: Identity): Pro
     for (let offset = 0; offset < value.data.length; offset += 262144) parts.push(env.DB.prepare('INSERT INTO egg_media(egg_id, kind, part, data) VALUES (?, ?, ?, ?)').bind(id, kind, offset / 262144, value.data.slice(offset, offset + 262144)));
   }
   const createdAt = Date.now();
+  const day = today(actor.timeZone, createdAt);
   try {
-    await env.DB.batch([env.DB.prepare('INSERT INTO eggs(id, author_id, author_name, created_at, text, media, request_hash, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, actor.user.id, actor.user.name, createdAt, draft.text, JSON.stringify(meta), digest, ownerId), ...parts]);
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM egg_media WHERE egg_id IN (SELECT id FROM eggs WHERE owner_id = ? AND day_key = ? AND deleted_at IS NULL)').bind(ownerId, day),
+      env.DB.prepare("UPDATE eggs SET deleted_at = ?, text = '', media = '{\"image\":null,\"audio\":null}' WHERE owner_id = ? AND day_key = ? AND deleted_at IS NULL").bind(createdAt, ownerId, day),
+      env.DB.prepare('INSERT INTO eggs(id, author_id, author_name, created_at, text, media, request_hash, owner_id, day_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, actor.user.id, actor.user.name, createdAt, draft.text, JSON.stringify(meta), digest, ownerId, day),
+      ...parts,
+    ]);
   } catch (error) {
     const retry = await previous();
     if (retry) return json({ entry: await entry(env, retry) });
