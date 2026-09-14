@@ -9,6 +9,7 @@
     "check": "tsc --noEmit",
     "lint": "eslint .",
     "check:sql": "node scripts/check-sql.mjs",
+    "check:diary": "node scripts/check-diary.mjs",
     "build": "npm run check && vite build",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",

@@ -92,6 +92,8 @@ D1 中 `mutations` INSERT 触发版本校验和任务 UPSERT；该语句失败�
 
 ## 日程、日记、库存与采购聚合
 
+日记 `diaryDays[].entries[].createdBy` 为不可变的条目作者，由服务端根据当前身份设置，客户端不能指定。`diaryDays[].texts` 保存 `{ ownerId, content, createdAt, updatedAt }`，每个日期每个用户至多一篇。`saveDiaryDay.text` 仅更新请求用户的正文，空白删除该用户的条目；其他用户的正文始终保留。旧快照字段 `text` 保留为空字符串以兼容旧客户端结构。开心/不开心条目仍整页保存且允许双方修改，保留原作者。迁移 `0007_diary_owners.sql` 从历史命令快照恢复归属并提升版本；历史命令与幂等记录保持不变。
+
 `GET /api/v1/planner/snapshot` 返回 `{ planner, serverTime }`。`planner` 包含 `version`、`schedules`、`diaryDays`、`stocks` 和 `shopping`。这些数据属于一个共享聚合，以保证一次库存购买可同时更新采购状态和库存余量、一次日记保存可同时更新条目和正文。
 
 `POST /api/v1/planner/commands` 接受 `{ mutationId, expectedVersion, operation }`。操作包括日程保存/完成/归档、整日日记保存、库存保存/更新/归档、采购添加/移除/完成。成功返回 `{ planner }`；版本冲突返回当前完整聚合。D1 的 `planner_mutations` INSERT 通过触发器校验版本并原子更新 `planner_state`，幂等语义与任务命令一致。

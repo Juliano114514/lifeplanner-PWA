@@ -9,8 +9,9 @@ export interface ScheduleBlock {
   source: ScheduleSource; quickPlanSlot: string | null; isArchived: boolean; createdBy: string; updatedBy: string; createdAt: number; updatedAt: number;
 }
 export type DiaryEntryType = 'HAPPY' | 'UNHAPPY';
-export interface DiaryEntry { id: string; type: DiaryEntryType; content: string; createdAt: number; updatedAt: number }
-export interface DiaryDay { date: string; entries: DiaryEntry[]; text: string; updatedBy: string; updatedAt: number }
+export interface DiaryEntry { id: string; type: DiaryEntryType; content: string; createdBy: string; createdAt: number; updatedAt: number }
+export interface DiaryText { ownerId: string; content: string; createdAt: number; updatedAt: number }
+export interface DiaryDay { date: string; entries: DiaryEntry[]; text: string; texts: DiaryText[]; updatedBy: string; updatedAt: number }
 export type StockKind = 'FOOD' | 'HOUSEHOLD';
 export type TrackingMode = 'QUANTITY' | 'PERCENT' | 'STATUS';
 export type StockLevel = 'MISSING' | 'LOW' | 'ENOUGH' | 'EXCESS';
@@ -74,7 +75,13 @@ export const plannerCommandSchema = z.object({
 export type PlannerCommand = z.infer<typeof plannerCommandSchema>;
 
 export const emptyPlanner = (): PlannerData => ({ version: 0, wishes: [], schedules: [], diaryDays: [], stocks: [], shopping: [] });
-export const normalizePlanner = (data: PlannerData): PlannerData => ({ ...data, wishes: data.wishes ?? [] });
+export const normalizePlanner = (data: PlannerData): PlannerData => ({ ...data, wishes: data.wishes ?? [],
+  diaryDays: data.diaryDays.map(day => ({ ...day,
+    entries: day.entries.map(entry => ({ ...entry, createdBy: entry.createdBy ?? '' })),
+    texts: day.texts ?? (day.text.trim() ? [{ ownerId: day.updatedBy, content: day.text, createdAt: day.updatedAt, updatedAt: day.updatedAt }] : []),
+    text: '',
+  })),
+});
 export const needsRestock = (item: StockItem) => item.trackingMode === 'STATUS'
   ? item.currentStatus === 'MISSING' || item.currentStatus === 'LOW'
   : item.currentAmount !== null && item.replenishThreshold !== null && item.currentAmount <= item.replenishThreshold;
@@ -145,8 +152,12 @@ export function applyPlannerCommand(current: PlannerData | null, command: Planne
     case 'saveDiaryDay': {
       const previous = data.diaryDays.find(value => value.date === op.date);
       const previousEntries = new Map(previous?.entries.map(value => [value.id, value]) ?? []);
-      const day: DiaryDay = { date: op.date, text: op.text, updatedBy: actor, updatedAt: now,
-        entries: op.entries.map(entry => ({ ...entry, createdAt: previousEntries.get(entry.id)?.createdAt ?? entry.createdAt, updatedAt: now })) };
+      const ownText = previous?.texts.find(value => value.ownerId === actor);
+      const texts = previous?.texts.filter(value => value.ownerId !== actor) ?? [];
+      if (op.text.trim()) texts.push({ ownerId: actor, content: op.text.trim(), createdAt: ownText?.createdAt ?? now, updatedAt: now });
+      const day: DiaryDay = { date: op.date, text: '', texts, updatedBy: actor, updatedAt: now,
+        entries: op.entries.map(entry => ({ ...entry, createdBy: previousEntries.get(entry.id)?.createdBy ?? actor,
+          createdAt: previousEntries.get(entry.id)?.createdAt ?? entry.createdAt, updatedAt: now })) };
       data.diaryDays = data.diaryDays.filter(value => value.date !== day.date).concat(day);
       break;
     }

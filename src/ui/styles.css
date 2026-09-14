@@ -1256,17 +1256,28 @@ main {
   width:100%;
   min-height:52px;
   display:grid;
-  grid-template-columns:24px minmax(0,1fr) auto;
+  grid-template-columns:minmax(0, max-content) minmax(0,1fr) auto;
   align-items:center;
   gap:8px;
   border-bottom:1px solid var(--line);
   text-align:left;
   border-radius:0
 }
-.diary-entries button>span {
-  color:var(--accent-dark)
+.diary-entries button>.owner {
+  font-size:10px;
+  max-width:100px;
+  overflow-wrap:anywhere
 }
 .diary-entries button p {
+  overflow-wrap:anywhere;
+  white-space:pre-wrap;
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  -webkit-box-orient:vertical;
+  overflow:hidden
+}
+.diary-preview {
+  white-space:pre-wrap;
   overflow-wrap:anywhere
 }
 .diary-entries button small {
@@ -1392,7 +1403,7 @@ main {
     grid-template-columns:repeat(2,minmax(0,1fr))
   }
   .diary-entries button {
-    grid-template-columns:22px minmax(0,1fr)
+    grid-template-columns:minmax(0, max-content) minmax(0,1fr)
   }
   .diary-entries button small {
     display:none
