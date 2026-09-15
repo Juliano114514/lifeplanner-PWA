@@ -1482,3 +1482,6 @@ input,select,textarea { accent-color:var(--accent-dark) }
   .sidebar nav a>span { max-width:100% }
   .wish-title-row .wish-address { flex-basis:100% }
 }
+
+.long-press-delete { -webkit-touch-callout: none; user-select: none; touch-action: pan-y; }
+.long-press-delete :disabled { pointer-events: none; }

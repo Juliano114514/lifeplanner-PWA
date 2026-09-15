@@ -63,7 +63,8 @@ export function applyCommand(current: Task | null, command: Command, actor: stri
     return { ...op.draft, id: command.taskId, version: 0, isArchived: false,
       createdBy: actor, updatedBy: actor, createdAt: now, updatedAt: now, occurrences: [] };
   })();
-  if (task.isArchived) throw new Error('任务已归档，请保留原记录并新建任务');
+  if (task.deletedAt !== undefined) throw new Error('任务已删除');
+  if (task.isArchived && op.type !== 'delete') throw new Error('任务已归档，请保留原记录并新建任务');
   switch (op.type) {
     case 'save':
       Object.assign(task, op.draft);
@@ -72,6 +73,10 @@ export function applyCommand(current: Task | null, command: Command, actor: stri
       break;
     case 'pin': task.isPinned = op.pinned; break;
     case 'archive': task.isArchived = true; break;
+    case 'delete':
+      if (!task.isArchived) throw new Error('只能删除已归档的任务');
+      task.deletedAt = now;
+      break;
     case 'status': {
       const occurrence = task.occurrences.find(o => o.plannedDate === op.date);
       if (!occurrence) throw new Error('任务实例已改变，请刷新后重试');

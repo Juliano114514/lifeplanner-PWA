@@ -18,6 +18,7 @@ export const operationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('save'), draft: draftSchema }).strict(),
   z.object({ type: z.literal('pin'), pinned: z.boolean() }).strict(),
   z.object({ type: z.literal('archive') }).strict(),
+  z.object({ type: z.literal('delete') }).strict(),
   z.object({ type: z.literal('status'), date: dateSchema, status: statusSchema }).strict(),
   z.object({ type: z.literal('ensure'), start: dateSchema, end: dateSchema }).strict(),
 ]);
@@ -34,7 +35,7 @@ export interface Occurrence {
   status: Status; completedAt: number | null;
 }
 export interface Task extends TaskDraft {
-  id: string; version: number; isArchived: boolean;
+  id: string; version: number; isArchived: boolean; deletedAt?: number;
   createdBy: string; updatedBy: string; createdAt: number; updatedAt: number;
   occurrences: Occurrence[];
 }

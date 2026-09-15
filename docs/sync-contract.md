@@ -125,3 +125,10 @@ IndexedDB 的 account 分区分别保存任务与生活数据的服务端基线�
 5. 原生端应使用系统浏览器 OAuth 和单次兑换的登录交接机制；本轮只实现浏览器 Cookie 会话，尚未实现 Android 回跳或 Bearer token 发行。GitHub Client Secret 绝不能打进 APK。
 6. 对齐共享时区后再迁移 dueAt 和计划日期；旧安卓数据按设备时区保存，迁移前必须明确原设备时区，避免跨日。
 7. 执行同账号 Android ↔ iOS 与双账号并发验收，再扩展日程、日记等模型。后续日程外键引用稳定实例标识时，需单独处理模板重建与关联保留，不能直接沿用无关联任务表删除逻辑。
+
+## 菜谱与归档删除
+
+- `recipes: Wish[]` 是独立于 `wishes` 的菜谱集合；`0008_recipes.sql` 一次性复制「想要吃」的非删除记录并生成新 UUID，同时提升聚合版本。旧快照缺失该字段时补空数组，客户端不执行重复复制。
+- 菜谱命令为 `saveRecipe`、`recipePin`、`recipeStatus`、`archiveRecipe`、`deleteRecipe`，沿用共享聚合的版本检查、成员校验、幂等与离线队列。
+- 愿望 `deleteWish`、菜谱 `deleteRecipe` 和任务 `delete` 仅接受已归档条目。保留 `deletedAt` 标记及版本并从列表隐藏；后续修改被拒绝，旧设备不会把原记录重新变为活动条目。
+- 原库存界面撤下，但既有 `stocks`、`shopping` 数据及命令暂留，以兼容旧设备的待同步操作。

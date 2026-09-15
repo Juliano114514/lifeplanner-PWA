@@ -6,6 +6,7 @@ import { ensureOperation, localDateTime, needsEnsure, organize, today } from '..
 import { enqueue, enqueuePlanner, loadDraft, materialize, materializePlanner, resolveConflict, type Account, type EditorDraft } from '../../data/store';
 import { Badge, formatMinute, PageHeading } from '../planner/PlannerUi';
 import { TaskEditor } from './TaskEditor';
+import { LongPressArticle } from '../planner/LongPressArticle';
 
 const groupNames = { urgent: '置顶 / 临近15天', todayPending: '今日未完成', todayCompleted: '今日已完成', others: '其他任务' };
 const recurrenceNames = { DAILY: '每日', WEEKLY: '每周', MONTHLY: '每月' };
@@ -28,7 +29,7 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
   const [resume, setResume] = useState<EditorDraft | null>(null);
   const [error, setError] = useState('');
   const tasks = useMemo(() => materialize(account), [account]);
-  const visible = tasks.filter(t => filter === 'all' || (filter === 'mine' ? t.ownerId === userId : t.ownerId !== userId));
+  const visible = tasks.filter(t => t.deletedAt === undefined && (filter === 'all' || (filter === 'mine' ? t.ownerId === userId : t.ownerId !== userId)));
   const groups = organize(visible, date, zone);
   const ownerName = (id: string) => identity.members.find(m => m.id === id)?.name ?? '成员';
   const ownerAvatar = (id: string) => (id === userId ? account.profile : identity.members.find(m => m.id === id)?.profile)?.avatar;
@@ -103,7 +104,8 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
         <p className="hint">重新提交只重放本机操作；云端已归档时另建任务，不恢复原任务。</p></section>;
     })}
     {archived ? <section className="task-section"><div className="section-heading"><h2>已归档</h2><span>{visible.filter(t => t.isArchived).length} 件事</span></div>
-      {visible.filter(t => t.isArchived).map(t => <article className="task-card" key={t.id}><div><h3>{t.title}</h3><p className="muted">{ownerName(t.ownerId)} · 已归档</p></div></article>)}
+      <p className="hint">长按条目可删除；电脑端也可右键或按 Delete。</p>
+      {visible.filter(t => t.isArchived).map(t => <LongPressArticle className="task-card" key={t.id} enabled={!account.conflicts[t.id]} title={t.title} onDelete={() => void act(t.id, { type: 'delete' })}><div><h3>{t.title}</h3><p className="muted">{ownerName(t.ownerId)} · 已归档</p></div></LongPressArticle>)}
       {!visible.some(t => t.isArchived) && <p className="empty">还没有归档的任务。</p>}</section>
       : groupKeys.map(key => <div className="task-group" key={key}>{key === 'todayCompleted' && pendingSchedules.length > 0 && <section className="task-section"><div className="section-heading"><h2>今日日程</h2><span>{pendingSchedules.length}</span></div>
         {pendingSchedules.map(scheduleCard)}</section>}

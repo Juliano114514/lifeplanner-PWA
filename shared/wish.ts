@@ -18,7 +18,7 @@ export const wishDraftSchema = z.object({
 }).strict().refine(value => !value.coordinates || !!value.address, '地图位置需要地址');
 export type WishDraft = z.infer<typeof wishDraftSchema>;
 export interface Wish extends WishDraft {
-  isPinned: boolean; isArchived: boolean; status: 'PENDING' | 'COMPLETED'; completedAt: number | null;
+  isPinned: boolean; isArchived: boolean; deletedAt?: number; status: 'PENDING' | 'COMPLETED'; completedAt: number | null;
   createdBy: string; updatedBy: string; createdAt: number; updatedAt: number;
   history: { id: string; status: 'PENDING' | 'COMPLETED'; actor: string; at: number }[];
 }

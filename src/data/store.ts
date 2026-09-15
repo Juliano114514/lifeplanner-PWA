@@ -123,7 +123,7 @@ export async function resolveConflict(id: string, taskId: string, choice: 'cloud
     delete account.conflicts[taskId];
     if (choice === 'cloud') return;
     // An archived cloud task is immutable. Preserve local content in a new task.
-    if ((!conflict.current || conflict.current.isArchived) && localTask) {
+    if ((!conflict.current || conflict.current.isArchived) && localTask && !old.some(pending => pending.command.operation.type === 'delete')) {
       const { title, note, dueAt, isPinned, recurrence, recurrenceStart, ownerId } = localTask;
       const command: Command = { mutationId: crypto.randomUUID(), taskId: crypto.randomUUID(),
         expectedVersion: 0, operation: { type: 'save', draft: { title, note, dueAt, isPinned, recurrence, recurrenceStart, ownerId } } };

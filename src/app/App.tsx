@@ -10,10 +10,6 @@ const HomePage = lazy(() => import('../features/home/HomePage').then(module => (
 const TasksPage = lazy(() => import('../features/tasks/TasksPage').then(module => ({ default: module.TasksPage })));
 const SchedulePage = lazy(() => import('../features/schedule/SchedulePage').then(module => ({ default: module.SchedulePage })));
 const DiaryPage = lazy(() => import('../features/diary/DiaryPage').then(module => ({ default: module.DiaryPage })));
-const DishesPage = lazy(() => import('../features/inventory/InventoryPages').then(module => ({ default: module.DishesPage })));
-const InventoryPage = lazy(() => import('../features/inventory/InventoryPages').then(module => ({ default: module.InventoryPage })));
-const InventoryHome = lazy(() => import('../features/inventory/InventoryPages').then(module => ({ default: module.InventoryHome })));
-const ShoppingPage = lazy(() => import('../features/inventory/InventoryPages').then(module => ({ default: module.ShoppingPage })));
 
 const WishesHome = lazy(() => import('../features/wishes/WishesPage').then(module => ({ default: module.WishesHome })));
 const WishesPage = lazy(() => import('../features/wishes/WishesPage').then(module => ({ default: module.WishesPage })));
@@ -23,7 +19,7 @@ const tabs = [
   { path: 'tasks', label: '任务', icon: '✓' }, { path: 'schedule', label: '日程', icon: '▦' },
   { path: 'wishes', label: '愿望', icon: '♡' },
   { path: 'diary', label: '日记', icon: '▤' },
-  { path: 'inventory', label: '库存', icon: '▣' },
+  { path: 'recipes', label: '菜谱', icon: '◒' },
 ];
 export function App() {
   const location = useLocation();
@@ -114,7 +110,7 @@ export function App() {
   }
   const authError = new URLSearchParams(window.location.search).get('authError');
   return <div className="app-layout"><aside className="sidebar"><NavLink to="/home" className="brand"><img src="/icon.svg" alt="" /><span>LifePlanner<small>两个人的日常</small></span></NavLink>
-    <nav aria-label="主要导航">{tabs.map(tab => <NavLink key={tab.path} to={`/${tab.path}`} className={tab.path === 'inventory' && location.pathname === '/dishes' ? 'active' : undefined}><span aria-hidden="true">{tab.icon}</span>{tab.label}</NavLink>)}</nav>
+    <nav aria-label="主要导航">{tabs.map(tab => <NavLink key={tab.path} to={`/${tab.path}`}><span aria-hidden="true">{tab.icon}</span>{tab.label}</NavLink>)}</nav>
     <div className="sidebar-note"><span>✳</span><p>不必填满每一天。<br />一起，留点时间给生活。</p></div></aside>
     <div className="main-column"><header className="topbar"><span className="workspace-label">OUR EVERYDAY <i> / </i> 共享空间</span>
       {account ? <div className="account-actions"><button className="avatar" aria-label="打开个人资料" aria-haspopup="dialog" onClick={() => setProfileOpen(true)}>{account.profile?.avatar ? <img src={account.profile.avatar} alt="" /> : displayName.slice(0, 1)}</button><span className="user-name">{displayName}</span><button className="text-button" onClick={() => void logout()}>退出</button></div> : <span className="small-leaf">✳</span>}</header>
@@ -135,17 +131,18 @@ export function App() {
               waiting.postMessage({ type: 'ACTIVATE' });
             }}>{editing || profileOpen ? '关闭编辑页后更新' : '更新应用'}</button></div>}
             {profileOpen && <ProfileDialog key={id} account={account} onClose={() => setProfileOpen(false)} sync={syncNow} />}
-            {account.plannerConflict && <section className="conflict" role="alert"><p className="eyebrow">需要你来决定</p><h3>共享生活记录有不同版本</h3><p>{account.plannerConflict.message}</p><p className="hint">日程、愿望、日记、菜品、库存和采购属于同一原子版本；任务不受这次选择影响。</p><div className="actions"><button onClick={() => void choosePlannerConflict('cloud')}>采用云端，放弃本机修改</button><button onClick={() => void choosePlannerConflict('local')}>在云端最新版上重放本机修改</button></div></section>}
+            {account.plannerConflict && <section className="conflict" role="alert"><p className="eyebrow">需要你来决定</p><h3>共享生活记录有不同版本</h3><p>{account.plannerConflict.message}</p><p className="hint">日程、愿望、日记和菜谱属于同一原子版本；任务不受这次选择影响。</p><div className="actions"><button onClick={() => void choosePlannerConflict('cloud')}>采用云端，放弃本机修改</button><button onClick={() => void choosePlannerConflict('local')}>在云端最新版上重放本机修改</button></div></section>}
             <Suspense fallback={<p className="empty">正在打开生活计划…</p>}><Routes><Route path="/home" element={<HomePage key={id} account={account} sync={syncNow} onEditing={setEditing} />} /><Route path="/tasks" element={<TasksPage key={id} account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/schedule" element={<SchedulePage account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/diary" element={<DiaryPage account={account} sync={syncNow} onEditing={setEditing} />} />
-              <Route path="/dishes" element={<DishesPage account={account} sync={syncNow} onEditing={setEditing} />} />
+              <Route path="/dishes" element={<Navigate to="/recipes" replace />} />
+              <Route path="/recipes" element={<WishesPage key="recipes" recipes account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/wishes" element={<WishesHome />} />
               <Route path="/wishes/:kind" element={<WishesPage key={location.pathname} account={account} sync={syncNow} onEditing={setEditing} />} />
-              <Route path="/inventory" element={<InventoryHome />} />
-              <Route path="/inventory/items" element={<InventoryPage account={account} sync={syncNow} onEditing={setEditing} />} />
+              <Route path="/inventory" element={<Navigate to="/recipes" replace />} />
+              <Route path="/inventory/items" element={<Navigate to="/recipes" replace />} />
               <Route path="/egg-history" element={<EggHistoryPage key={id} account={account} onEditing={setEditing} />} />
-              <Route path="/shopping" element={<ShoppingPage account={account} sync={syncNow} onEditing={setEditing} />} />
+              <Route path="/shopping" element={<Navigate to="/recipes" replace />} />
               <Route path="*" element={<Navigate to="/home" replace />} /></Routes></Suspense>
           </>}
       </main><footer className="page-footer">LifePlanner <span>·</span> 留一点时间，好好生活。</footer></div>

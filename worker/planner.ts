@@ -25,7 +25,7 @@ export async function plannerRoute(request: Request, env: Env, actor: Identity):
   };
   const prior = await replay();
   if (prior) return prior;
-  if (command.operation.type === 'saveWish' && !actor.members.map(member => member.id).includes(command.operation.draft.ownerId)) throw new HttpError(400, 'INVALID_OWNER', '请选择共享成员');
+  if ((command.operation.type === 'saveWish' || command.operation.type === 'saveRecipe') && !actor.members.map(member => member.id).includes(command.operation.draft.ownerId)) throw new HttpError(400, 'INVALID_OWNER', '请选择共享成员');
   const current = await getPlanner(env);
   const conflict = () => json({ error: 'VERSION_CONFLICT', message: '共享生活记录已在另一台设备修改，请选择保留的内容', current }, 409);
   if (current.version !== command.expectedVersion) return conflict();

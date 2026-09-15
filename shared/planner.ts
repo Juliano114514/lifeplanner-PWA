@@ -29,7 +29,7 @@ export interface ShoppingEntry {
   createdAt: number; purchasedAt: number | null;
 }
 export interface PlannerData {
-  version: number; wishes: Wish[]; schedules: ScheduleBlock[]; diaryDays: DiaryDay[]; stocks: StockItem[]; shopping: ShoppingEntry[];
+  version: number; wishes: Wish[]; recipes: Wish[]; schedules: ScheduleBlock[]; diaryDays: DiaryDay[]; stocks: StockItem[]; shopping: ShoppingEntry[];
 }
 
 const nullableNumber = z.number().finite().nonnegative().nullable();
@@ -57,6 +57,12 @@ export const plannerOperationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('wishPin'), id: z.uuid(), pinned: z.boolean() }).strict(),
   z.object({ type: z.literal('wishStatus'), id: z.uuid(), status: z.enum(['PENDING', 'COMPLETED']) }).strict(),
   z.object({ type: z.literal('archiveWish'), id: z.uuid() }).strict(),
+  z.object({ type: z.literal('deleteWish'), id: z.uuid() }).strict(),
+  z.object({ type: z.literal('saveRecipe'), draft: wishDraftSchema }).strict(),
+  z.object({ type: z.literal('recipePin'), id: z.uuid(), pinned: z.boolean() }).strict(),
+  z.object({ type: z.literal('recipeStatus'), id: z.uuid(), status: z.enum(['PENDING', 'COMPLETED']) }).strict(),
+  z.object({ type: z.literal('archiveRecipe'), id: z.uuid() }).strict(),
+  z.object({ type: z.literal('deleteRecipe'), id: z.uuid() }).strict(),
   z.object({ type: z.literal('saveSchedule'), draft: scheduleDraftSchema }).strict(),
   z.object({ type: z.literal('scheduleStatus'), id: z.uuid(), status: statusSchema }).strict(),
   z.object({ type: z.literal('archiveSchedule'), id: z.uuid() }).strict(),
@@ -74,8 +80,8 @@ export const plannerCommandSchema = z.object({
 }).strict();
 export type PlannerCommand = z.infer<typeof plannerCommandSchema>;
 
-export const emptyPlanner = (): PlannerData => ({ version: 0, wishes: [], schedules: [], diaryDays: [], stocks: [], shopping: [] });
-export const normalizePlanner = (data: PlannerData): PlannerData => ({ ...data, wishes: data.wishes ?? [],
+export const emptyPlanner = (): PlannerData => ({ version: 0, wishes: [], recipes: [], schedules: [], diaryDays: [], stocks: [], shopping: [] });
+export const normalizePlanner = (data: PlannerData): PlannerData => ({ ...data, wishes: data.wishes ?? [], recipes: data.recipes ?? [],
   diaryDays: data.diaryDays.map(day => ({ ...day,
     entries: day.entries.map(entry => ({ ...entry, createdBy: entry.createdBy ?? '' })),
     texts: day.texts ?? (day.text.trim() ? [{ ownerId: day.updatedBy, content: day.text, createdAt: day.updatedAt, updatedAt: day.updatedAt }] : []),
@@ -105,29 +111,44 @@ export function applyPlannerCommand(current: PlannerData | null, command: Planne
   const data = current ? structuredClone(normalizePlanner(current)) : emptyPlanner();
   const op = command.operation;
   switch (op.type) {
-    case 'saveWish': {
+    case 'saveWish':
+    case 'saveRecipe': {
+      const collection = op.type === 'saveRecipe' ? 'recipes' : 'wishes';
       const draft = wishDraftSchema.parse(op.draft);
-      const previous = data.wishes.find(value => value.id === draft.id);
-      if (previous?.isArchived) throw new Error('愿望已归档');
+      const previous = data[collection].find(value => value.id === draft.id);
+      if (previous?.deletedAt !== undefined) throw new Error('条目已删除');
+      if (previous?.isArchived) throw new Error('条目已归档');
       const next: Wish = { ...draft, isPinned: previous?.isPinned ?? false, isArchived: false,
         status: previous?.status ?? 'PENDING', completedAt: previous?.completedAt ?? null,
         createdBy: previous?.createdBy ?? actor, createdAt: previous?.createdAt ?? now,
         updatedBy: actor, updatedAt: now, history: previous?.history ?? [] };
-      data.wishes = data.wishes.filter(value => value.id !== next.id).concat(next);
+      data[collection] = data[collection].filter(value => value.id !== next.id).concat(next);
       break;
     }
     case 'wishPin':
     case 'wishStatus':
-    case 'archiveWish': {
-      const wish = data.wishes.find(value => value.id === op.id && !value.isArchived);
-      if (!wish) throw new Error('愿望不存在或已归档');
-      if (op.type === 'wishPin') wish.isPinned = op.pinned;
-      else if (op.type === 'archiveWish') wish.isArchived = true;
+    case 'archiveWish':
+    case 'recipePin':
+    case 'recipeStatus':
+    case 'archiveRecipe': {
+      const collection = ['recipePin', 'recipeStatus', 'archiveRecipe'].includes(op.type) ? 'recipes' : 'wishes';
+      const wish = data[collection].find(value => value.id === op.id && !value.isArchived);
+      if (!wish) throw new Error('条目不存在或已归档');
+      if (op.type === 'wishPin' || op.type === 'recipePin') wish.isPinned = op.pinned;
+      else if (op.type === 'archiveWish' || op.type === 'archiveRecipe') wish.isArchived = true;
       else if (wish.status !== op.status) {
         wish.status = op.status; wish.completedAt = op.status === 'COMPLETED' ? now : null;
         wish.history.push({ id: command.mutationId, status: op.status, actor, at: now });
       }
       wish.updatedBy = actor; wish.updatedAt = now;
+      break;
+    }
+    case 'deleteWish':
+    case 'deleteRecipe': {
+      const collection = op.type === 'deleteRecipe' ? 'recipes' : 'wishes';
+      const item = data[collection].find(value => value.id === op.id);
+      if (!item?.isArchived || item.deletedAt !== undefined) throw new Error('只能删除尚未删除的归档条目');
+      item.deletedAt = now; item.updatedBy = actor; item.updatedAt = now;
       break;
     }
     case 'saveSchedule': {
