@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LifePlanner · 界面规范</title>
+  <link rel="stylesheet" href="../src/ui/styles.css" />
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <a class="brand" href="#overview"><span aria-hidden="true">♧</span><span>LifePlanner<small>界面规范</small></span></a>
+      <nav aria-label="规范导航">
+        <a href="#overview"><span>⌂</span>概览</a><a href="#tasks"><span>✓</span>任务</a>
+        <a href="#schedule"><span>▦</span>日程</a><a href="#wishes"><span>♡</span>愿望</a>
+        <a href="#forms"><span>▤</span>表单</a><a href="#recipes" class="active"><span>◒</span>菜谱</a>
+      </nav>
+      <p class="sidebar-note">本页复用应用样式。<br />示例内容仅展示外观，不保存数据。</p>
+    </aside>
+    <div class="main-column">
+      <header class="topbar"><span class="workspace-label">LIFEPLANNER · 界面规范</span><span class="avatar">林</span></header>
+      <main>
+        <section id="overview">
+          <header class="page-heading"><div><p class="eyebrow">DESIGN SYSTEM</p><h1>清晰、轻松、一致</h1></div></header>
+          <p class="notice">这是样式规范页。卡片、按钮和表单使用示例内容，不会修改生活记录。</p>
+          <div class="tonal-card"><h2>全站共用一套设置</h2><p>基础字号 16px，说明 14px，元信息至少 12px；卡片标题 18px，分区标题 20px，页面标题 28px。正文行高 1.6，中文标题不挤压字距。</p><p>间距以 4px 为基准；卡片圆角 16px，控件圆角 12px。主要按钮高度至少 48px。绿色用于主要动作与选中状态；警告和危险操作同时配有文字。系统深色模式自动适配。</p></div>
+          <div class="badge-row page-actions"><span class="badge success">已完成</span><span class="badge warning">临近截止</span><span class="badge error">时间冲突</span><span class="badge">待同步</span></div>
+        </section>
+        <section id="recipes" class="task-section">
+          <header class="page-heading"><div><p class="eyebrow">LIFEPLANNER</p><h1>菜谱</h1></div><button class="primary">新增菜谱<span>＋</span></button></header>
+          <div class="recipe-toolbar"><div class="segmented recipe-tabs" aria-label="菜谱视图"><button class="selected" aria-pressed="true">全部菜谱</button><button aria-pressed="false">谁想吃</button></div><div class="recipe-search"><input type="search" aria-label="搜索菜谱" placeholder="搜索菜名、食材或调味料" /><button class="text-button">清空</button></div></div>
+          <p class="hint">名字、食材和调味料为一组，右侧保留独立操作。</p>
+          <div class="recipe-grid">
+            <article class="recipe-card"><button class="recipe-card-content" aria-label="查看菜谱：番茄炒鸡蛋"><strong>番茄炒鸡蛋</strong><div class="recipe-material-group"><span class="recipe-material-label">食材</span><div class="recipe-tag-area"><div class="recipe-tags"><span class="recipe-tag">番茄 · 2个</span><span class="recipe-tag">鸡蛋 · 3个</span></div></div></div><div class="recipe-material-group"><span class="recipe-material-label">调味料</span><div class="recipe-tag-area"><div class="recipe-tags"><span class="recipe-tag">盐 · 适量</span><span class="recipe-tag">白糖 · 少许</span></div></div></div></button><div class="recipe-card-action"><button class="recipe-want-button">我想吃</button></div></article>
+            <article class="recipe-card"><button class="recipe-card-content" aria-label="查看菜谱：周末一起做的香菇胡萝卜土豆炖牛肉"><strong>周末一起做的香菇胡萝卜土豆炖牛肉</strong><div class="recipe-material-group"><span class="recipe-material-label">食材</span><div class="recipe-tag-area"><div class="recipe-tags"><span class="recipe-tag">牛肉 · 500克</span><span class="recipe-tag">土豆 · 2个</span><span class="recipe-tag recipe-more">+3</span></div></div></div><div class="recipe-material-group"><span class="recipe-material-label">调味料</span><div class="recipe-tag-area"><div class="recipe-tags"><span class="recipe-tag">生抽 · 2勺</span><span class="recipe-tag">八角 · 1个</span></div></div></div></button><div class="recipe-card-action"><button class="recipe-want-button selected" aria-pressed="true"><span>已想吃</span><span class="recipe-want-cancel"> · 取消</span></button></div></article>
+            <article class="recipe-card"><button class="recipe-card-content"><strong>清蒸鱼</strong><div class="recipe-material-group"><span class="recipe-material-label">食材</span><div class="recipe-tag-area"><div class="recipe-tags"><span class="muted">待补充</span></div></div></div><div class="recipe-material-group"><span class="recipe-material-label">调味料</span><div class="recipe-tag-area"><div class="recipe-tags"><span class="muted">待补充</span></div></div></div></button><div class="recipe-card-action"><button class="recipe-want-button">我想吃</button></div></article>
+          </div>
+          <div class="section-heading"><h2>谁想吃</h2><span>2</span></div>
+          <div class="recipe-grid">
+            <article class="recipe-card recipe-request-card"><div class="recipe-request-avatars"><span class="avatar" title="小林想吃">林</span><span class="avatar" title="小陈想吃">陈</span></div><button class="recipe-card-content"><strong>番茄炒鸡蛋</strong><div class="recipe-material-group"><span class="recipe-material-label">食材</span><div class="recipe-tag-area"><div class="recipe-tags"><span class="recipe-tag">番茄 · 2个</span><span class="recipe-tag">鸡蛋 · 3个</span></div></div></div><div class="recipe-material-group"><span class="recipe-material-label">调味料</span><div class="recipe-tag-area"><div class="recipe-tags"><span class="recipe-tag">盐 · 适量</span></div></div></div></button><div class="recipe-card-action"><label class="recipe-eaten-control"><input type="checkbox" class="task-checkbox" /><span>吃到了</span></label><button class="text-button recipe-cancel-want">取消想吃</button></div></article>
+            <article class="recipe-card recipe-request-card recipe-eaten-card"><div class="recipe-request-avatars"><span class="avatar">林</span></div><button class="recipe-card-content"><strong>清蒸鱼</strong><div class="recipe-material-group"><span class="recipe-material-label">食材</span><div class="recipe-tag-area"><div class="recipe-tags"><span class="recipe-tag">鲈鱼 · 1条</span></div></div></div><div class="recipe-material-group"><span class="recipe-material-label">调味料</span><div class="recipe-tag-area"><div class="recipe-tags"><span class="recipe-tag">蒸鱼豉油</span></div></div></div></button><div class="recipe-card-action"><label class="recipe-eaten-control"><input type="checkbox" checked class="task-checkbox" /><span>吃到了</span></label></div></article>
+          </div>
+        </section>
+        <section id="tasks" class="task-section">
+          <div class="section-heading"><h2>任务与记录</h2><span>1</span></div>
+          <article class="task-card planned-task-card"><div class="task-overview"><span class="avatar task-avatar">林</span><div class="task-body"><div class="task-title-row"><button class="task-title">周末一起去公园散步</button><span class="pin-label">置顶</span></div><div class="metadata"><span class="owner">小林</span><span>计划 9月20日</span><span>不重复</span></div></div><input type="checkbox" class="task-checkbox" aria-label="完成任务" /></div><div class="task-extra"><p class="task-note">带上水和相机，慢慢走一走。</p><details class="task-details"><summary>操作与记录</summary><div class="actions"><button>编辑 / 转交</button><button>归档</button><button class="danger-text">删除</button></div><p class="hint">创建：小林 · 最后修改：小陈</p></details></div></article>
+          <p class="empty">这里暂时没有安排，留一点空白也很好。</p>
+        </section>
+        <section id="wishes" class="task-section"><div class="section-heading"><h2>愿望分类</h2></div><div class="inventory-menu"><a class="content-card inventory-menu-item" href="#wishes"><span>⌖</span><strong>去干嘛</strong><span>›</span></a><a class="content-card inventory-menu-item" href="#wishes"><span>◒</span><strong>下馆子</strong><span>›</span></a><a class="content-card inventory-menu-item" href="#wishes"><span>♧</span><strong>买什么</strong><span>›</span></a></div></section>
+        <section id="schedule" class="task-section"><div class="section-heading"><h2>日程</h2></div><div class="timeline-row"><time>09:00</time><div class="timeline-slot"><article class="schedule-card"><button class="completion compact" aria-label="完成日程"></button><button class="schedule-body"><strong>一起去买菜</strong><span>09:00–10:00 · 记得带购物袋</span></button><div class="badge-row"><span class="badge">任务</span></div></article></div></div></section>
+        <section id="forms" class="task-section"><div class="section-heading"><h2>表单与操作</h2></div><div class="editor planner-dialog wide"><h2>编辑菜谱</h2><label>菜名<input value="番茄炒鸡蛋" /></label><fieldset class="recipe-material-editor"><legend>食材</legend><div class="recipe-material-entry"><label>名称<input value="鸡蛋" /></label><label>用量（可选）<input value="3个" /></label><button class="text-button danger-text">移除</button></div><button class="text-button">＋ 添加食材</button></fieldset><label>步骤 1<textarea rows="3">番茄切块，鸡蛋打散。</textarea></label><div class="actions"><button disabled>上移</button><button>下移</button><button class="danger-text">删除步骤</button></div><div class="editor-footer"><button class="text-button">取消</button><button class="primary">保存</button></div></div></section>
+      </main>
+      <footer class="page-footer">修改样式入口：src/ui/tokens.css、theme-light.css、theme-dark.css、styles.css</footer>
+    </div>
+  </div>
+</body>
+</html>

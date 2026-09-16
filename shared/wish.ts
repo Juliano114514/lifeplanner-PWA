@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const wishKinds = { GO: '想要去', EAT: '想要吃', BUY: '想要买' };
+export const wishKinds = { GO: '去干嘛', EAT: '下馆子', BUY: '买什么' };
 export const wishHorizons = { FORTNIGHT: '这半个月内', QUARTER: '一个季度内', HALF_YEAR: '半年内', SOMEDAY: '将来一定' };
 export type WishKind = keyof typeof wishKinds;
 export type WishHorizon = keyof typeof wishHorizons;

@@ -129,7 +129,7 @@ export function RecipesPage({ account, sync, onEditing }: { account: Account; sy
         return <RecipeCard key={recipe.id} recipe={recipe} onOpen={() => setSelectedId(recipe.id)} action={
           <button type="button" className={`recipe-want-button ${wanted ? 'selected' : ''}`} disabled={blocked} aria-pressed={!!wanted}
             onClick={() => act(wanted && pending ? { type: 'cancelRecipeWant', requestId: pending.id }
-              : { type: 'wantRecipe', recipeId: recipe.id, requestId: pending?.id ?? crypto.randomUUID() })}>{wanted ? '已想吃 · 取消' : '我想吃'}</button>} />;
+              : { type: 'wantRecipe', recipeId: recipe.id, requestId: pending?.id ?? crypto.randomUUID() })}>{wanted ? <><span>已想吃</span><span className="recipe-want-cancel"> · 取消</span></> : '我想吃'}</button>} />;
       })}</div>
       {!matches.length && <p className="empty">{recipes.length ? '没有匹配的菜谱，换个关键词或清空搜索试试。' : '先记下菜名，再慢慢补全材料和做法。'}</p>}
     </> : <><p className="hint" role="status">待吃全部保留，吃到后保留最近 10 条。{words.length ? `当前匹配 ${requests.length} 条记录。` : ''}</p>

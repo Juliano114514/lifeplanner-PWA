@@ -1,8 +1,40 @@
 @import url('./theme-light.css');
 @import url('./theme-dark.css');
 :root {
-  --radius:20px;
+  /* One scale shared by pages, cards, forms and dialogs. */
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-5:20px;
+  --space-6:24px;
+  --space-8:32px;
+  --space-10:40px;
+  --space-12:48px;
+  --text-xs:12px;
+  --text-sm:14px;
+  --text-base:16px;
+  --text-title:18px;
+  --text-section:20px;
+  --text-heading:28px;
+  --text-hero:clamp(28px,4vw,40px);
+  --leading:1.6;
+  --leading-heading:1.35;
+  --weight-medium:600;
+  --weight-bold:700;
+  --radius:16px;
   --radius-sm:12px;
-  --radius-control:16px;
-  --font:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --radius-control:12px;
+  --radius-dialog:24px;
+  --control-height:48px;
+  --content-width:1080px;
+  --page-gutter:clamp(16px,4vw,48px);
+  --card-padding:20px;
+  --card-gap:12px;
+  --shadow-card:0 2px 0 var(--line);
+  --shadow-dialog:0 24px 80px #0003;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+}
+@media(max-width:640px) {
+  :root { --card-padding:16px; }
 }
