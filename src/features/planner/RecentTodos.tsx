@@ -7,7 +7,7 @@ export function RecentTodos({ account, ownerId = account.identity.user.id, sync 
   const [now, setNow] = useState(Date.now);
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(timer); }, []);
   const zone = account.identity.timeZone;
-  const recent = materialize(account).filter(task => !task.isArchived && task.ownerId === ownerId).flatMap(task => {
+  const recent = materialize(account).filter(task => task.deletedAt === undefined && !task.isArchived && task.ownerId === ownerId).flatMap(task => {
     // Generate nearby recurring instances in memory without changing the sync queue.
     const expanded = task.recurrence ? applyCommand(task, {
       mutationId: 'profile-preview', taskId: task.id, expectedVersion: task.version,

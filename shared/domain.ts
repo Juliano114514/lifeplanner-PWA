@@ -15,7 +15,7 @@ export function toEpoch(local: string, zone: string): number {
 
 // Match Android RecurrenceGenerator: monthly recurrences retain the original day.
 export function recurrenceDates(task: Task, start: string, end: string): string[] {
-  if (task.isArchived || end < start) return [];
+  if (task.deletedAt !== undefined || task.isArchived || end < start) return [];
   if (!task.recurrence) return task.recurrenceStart >= start && task.recurrenceStart <= end ? [task.recurrenceStart] : [];
   const anchor = Temporal.PlainDate.from(task.recurrenceStart);
   const lower = Temporal.PlainDate.from(start);
@@ -74,7 +74,6 @@ export function applyCommand(current: Task | null, command: Command, actor: stri
     case 'pin': task.isPinned = op.pinned; break;
     case 'archive': task.isArchived = true; break;
     case 'delete':
-      if (!task.isArchived) throw new Error('只能删除已归档的任务');
       task.deletedAt = now;
       break;
     case 'status': {
@@ -95,6 +94,7 @@ export function applyCommand(current: Task | null, command: Command, actor: stri
 }
 
 export function needsEnsure(task: Task, date: string): boolean {
+  if (task.deletedAt !== undefined) return false;
   const existing = new Set(task.occurrences.map(o => o.plannedDate));
   return recurrenceDates(task, addMonths(date, -1), addMonths(date, 1)).some(d => !existing.has(d));
 }
@@ -110,7 +110,7 @@ const nullableNumber = (a: number | null | undefined, b: number | null | undefin
 export function organize(tasks: Task[], date: string, zone: string): Overview {
   const groups: Overview = { urgent: [], todayPending: [], todayCompleted: [], others: [] };
   const urgentEnd = addDays(date, 15);
-  for (const task of tasks.filter(t => !t.isArchived).sort((a, b) => b.createdAt - a.createdAt)) {
+  for (const task of tasks.filter(t => t.deletedAt === undefined && !t.isArchived).sort((a, b) => b.createdAt - a.createdAt)) {
     const related = task.occurrences;
     const pending = related.filter(o => o.status === 'PENDING');
     const urgent = pending.filter(o => {

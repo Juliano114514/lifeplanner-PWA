@@ -17,7 +17,7 @@ export function SchedulePage({ account, sync, onEditing }: { account: Account; s
   const [editor, setEditor] = useState<Draft | null>(() => {
     const taskId = search.get('task');
     if (!taskId) return null;
-    const task = materialize(account).find(value => value.id === taskId);
+    const task = materialize(account).find(value => value.id === taskId && value.deletedAt === undefined);
     return task ? { ...emptyDraft(search.get('date') ?? today(zone)), title: task.title, note: task.note, taskId, occurrenceDate: search.get('date') ?? today(zone) } : null;
   });
   const [wizard, setWizard] = useState(false);
@@ -52,7 +52,7 @@ export function SchedulePage({ account, sync, onEditing }: { account: Account; s
       catch (reason) { setError(reason instanceof Error ? `日程已更新，但任务同步失败：${reason.message}` : '关联任务同步失败'); }
     }
   }
-  const linkedTask = (block: ScheduleBlock) => block.taskId ? tasks.find(value => value.id === block.taskId) : undefined;
+  const linkedTask = (block: Pick<ScheduleBlock, 'taskId'>) => block.taskId ? tasks.find(value => value.id === block.taskId && value.deletedAt === undefined) : undefined;
   return <>
     <PageHeading title="一日安排" action={<button className="primary" onClick={() => beginEdit(emptyDraft(date))}>新增日程<span>＋</span></button>} />
     <DateNavigator date={date} zone={zone} recorded={recorded} onChange={value => { setDate(value); setSearch({ date: value }, { replace: true }); }} />
@@ -71,7 +71,7 @@ export function SchedulePage({ account, sync, onEditing }: { account: Account; s
         </article>)}
       </div></div>;
     })}</section>
-    {editor && <ScheduleEditor date={date} draft={editor} linkedTask={editor.taskId ? tasks.find(value => value.id === editor.taskId) : undefined} onClose={() => { beginEdit(null); setSearch({ date }, { replace: true }); }} onSave={async draft => {
+    {editor && <ScheduleEditor date={date} draft={editor} linkedTask={linkedTask(editor)} onClose={() => { beginEdit(null); setSearch({ date }, { replace: true }); }} onSave={async draft => {
       await run({ type: 'saveSchedule', draft: { ...draft, date } }); beginEdit(null); setSearch({ date }, { replace: true });
     }} onDelete={planner.schedules.some(value => value.id === editor.id) ? async () => { await run({ type: 'archiveSchedule', id: editor.id }); beginEdit(null); } : undefined} />}
     {wizard && <QuickPlanWizard date={date} account={account} existing={blocks.filter(value => value.source === 'QUICK_PLAN')} onClose={() => setWizard(false)} onSave={async (drafts, todoTitle) => {

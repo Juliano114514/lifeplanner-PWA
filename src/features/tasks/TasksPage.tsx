@@ -11,10 +11,11 @@ import { LongPressArticle } from '../planner/LongPressArticle';
 const groupNames = { urgent: '置顶 / 临近15天', todayPending: '今日未完成', todayCompleted: '今日已完成', others: '其他任务' };
 const recurrenceNames = { DAILY: '每日', WEEKLY: '每周', MONTHLY: '每月' };
 const groupKeys = ['urgent', 'todayPending', 'todayCompleted', 'others'] as const;
+const deleteMessage = (task: Task) => `删除「${task.title}」${task.recurrence ? '整个循环任务及其所有实例记录' : ''}？删除后无法恢复，将同步到其他设备。已安排的日程将保留为独立日程。`;
 function TaskSummary({ task, zone, name }: { task: Task | null; zone: string; name: (id: string) => string }) {
   if (!task) return <p>云端尚无此任务。</p>;
   return <><p><strong>{task.title}</strong></p><p>{task.note || '无备注'}</p>
-    <p>归属：{name(task.ownerId)} · {task.isArchived ? '已归档' : task.isPinned ? '已置顶' : '普通任务'}</p>
+    <p>归属：{name(task.ownerId)} · {task.deletedAt !== undefined ? '已删除' : task.isArchived ? '已归档' : task.isPinned ? '已置顶' : '普通任务'}</p>
     <p>开始：{task.recurrenceStart} · {task.recurrence ? recurrenceNames[task.recurrence] : '不重复'}</p>
     <p>截止：{task.dueAt === null ? '未设置' : localDateTime(task.dueAt, zone).replace('T', ' ')}</p>
     <p>最后修改：{name(task.updatedBy)} · {localDateTime(task.updatedAt, zone).replace('T', ' ')}</p>
@@ -95,17 +96,19 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
     {resume && !editor && <div className="notice">有一份未保存的任务草稿。<button className="text-button" onClick={() => setEditor(resume)}>继续编辑 ↗</button></div>}
     {error && <p className="notice error-text" role="alert">{error}</p>}
     {Object.entries(account.conflicts).map(([taskId, conflict]) => {
-      const local = tasks.find(t => t.id === taskId);
+      const local = account.pending.filter(value => value.command.taskId === taskId).at(-1)?.preview ?? tasks.find(t => t.id === taskId);
       return <section className="conflict" key={taskId} role="alert"><p className="eyebrow">需要你来决定</p><h3>「{local?.title}」有不同版本</h3><p>{conflict.message}</p>
         <div className="compare"><div><strong>本机内容</strong><TaskSummary task={local ?? null} zone={zone} name={ownerName} /></div><div><strong>云端内容</strong><TaskSummary task={conflict.current} zone={zone} name={ownerName} /></div></div>
         <div className="actions"><button onClick={async () => { await resolveConflict(userId, taskId, 'cloud'); sync(); }}>采用云端，放弃本机修改</button>
-          <button onClick={async () => { try { await resolveConflict(userId, taskId, 'local'); setError(''); sync(); } catch (e) { setError(e instanceof Error ? e.message : '无法重新提交，请采用云端后重新编辑'); } }}>
+          <button disabled={conflict.current?.deletedAt !== undefined} onClick={async () => { try { await resolveConflict(userId, taskId, 'local'); setError(''); sync(); } catch (e) { setError(e instanceof Error ? e.message : '无法重新提交，请采用云端后重新编辑'); } }}>
             {conflict.current && !conflict.current.isArchived ? '重新提交本机修改' : '将本机内容另存为新任务'}</button></div>
-        <p className="hint">重新提交只重放本机操作；云端已归档时另建任务，不恢复原任务。</p></section>;
+        <p className="hint">重新提交只重放本机操作；云端已归档时另建任务。云端已删除的任务不能恢复，请采用云端。</p></section>;
     })}
     {archived ? <section className="task-section"><div className="section-heading"><h2>已归档</h2><span>{visible.filter(t => t.isArchived).length} 件事</span></div>
       <p className="hint">长按条目可删除；电脑端也可右键或按 Delete。</p>
-      {visible.filter(t => t.isArchived).map(t => <LongPressArticle className="task-card" key={t.id} enabled={!account.conflicts[t.id]} title={t.title} onDelete={() => void act(t.id, { type: 'delete' })}><div><h3>{t.title}</h3><p className="muted">{ownerName(t.ownerId)} · 已归档</p></div></LongPressArticle>)}
+      {visible.filter(t => t.isArchived).map(t => <LongPressArticle className="task-card" key={t.id} enabled={!account.conflicts[t.id]} title={t.title} deleteMessage={deleteMessage(t)} onDelete={() => void act(t.id, { type: 'delete' })}><div><h3>{t.title}</h3><p className="muted">{ownerName(t.ownerId)} · 已归档</p>
+        <details className="task-details"><summary>操作与记录</summary><div className="actions"><button className="danger-text" disabled={!!account.conflicts[t.id]} onClick={() => { if (window.confirm(deleteMessage(t))) void act(t.id, { type: 'delete' }); }}>删除</button></div></details>
+      </div></LongPressArticle>)}
       {!visible.some(t => t.isArchived) && <p className="empty">还没有归档的任务。</p>}</section>
       : groupKeys.map(key => <div className="task-group" key={key}>{key === 'todayCompleted' && pendingSchedules.length > 0 && <section className="task-section"><div className="section-heading"><h2>今日日程</h2><span>{pendingSchedules.length}</span></div>
         {pendingSchedules.map(scheduleCard)}</section>}
@@ -134,7 +137,8 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
               <button onClick={() => void act(task.id, { type: 'pin', pinned: !task.isPinned })}>{task.isPinned ? '取消置顶' : '置顶'}</button>
               {occurrence && <button onClick={() => navigate(`/schedule?date=${occurrence.plannedDate}&task=${task.id}`)}>安排</button>}
               {occurrence?.status === 'PENDING' && <button onClick={() => void act(task.id, { type: 'status', date: occurrence.plannedDate, status: 'SKIPPED' })}>跳过本次</button>}
-              <button onClick={() => { if (window.confirm(`归档「${task.title}」？归档后将从待办隐藏。`)) void act(task.id, { type: 'archive' }); }}>归档</button></div>
+              <button onClick={() => { if (window.confirm(`归档「${task.title}」？归档后将从待办隐藏。`)) void act(task.id, { type: 'archive' }); }}>归档</button>
+              <button className="danger-text" disabled={!!account.conflicts[task.id]} onClick={() => { if (window.confirm(deleteMessage(task))) void act(task.id, { type: 'delete' }); }}>删除</button></div>
               <p className="hint">创建：{ownerName(task.createdBy)} · 最后修改：{ownerName(task.updatedBy)}</p>
               {task.occurrences.filter(o => o.status !== 'PENDING').map(o => <div className="history-row" key={o.id}><span>{o.plannedDate} · {o.status === 'SKIPPED' ? '已跳过' : '已完成'}</span>
                 <button className="text-button" onClick={() => void act(task.id, { type: 'status', date: o.plannedDate, status: 'PENDING' })}>恢复待办</button></div>)}

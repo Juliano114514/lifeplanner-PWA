@@ -2,6 +2,7 @@ import { openDB, type DBSchema } from 'idb';
 import { profileSchema, type Command, type Identity, type Operation, type Task, type TaskDraft, type UserProfile } from '../../shared/contracts';
 import { applyCommand } from '../../shared/domain';
 import { applyPlannerCommand, emptyPlanner, normalizePlanner, type PlannerCommand, type PlannerData, type PlannerOperation } from '../../shared/planner';
+import { normalizeRecipeRequests } from '../../shared/recipe';
 
 export interface Pending { command: Command; at: number; preview: Task }
 export interface Conflict { current: Task | null; message: string }
@@ -69,8 +70,12 @@ export async function cachedAccount(): Promise<Account | undefined> {
 }
 export function materialize(account: Account): Task[] {
   const tasks = new Map(account.base.map(task => [task.id, structuredClone(task)]));
+  for (const conflict of Object.values(account.conflicts)) {
+    if (conflict.current?.deletedAt !== undefined) tasks.set(conflict.current.id, structuredClone(conflict.current));
+  }
   for (const { command, at } of account.pending) {
     const current = tasks.get(command.taskId) ?? null;
+    if (current?.deletedAt !== undefined) continue;
     // Base remains the version on which local work started until conflict resolution.
     try { tasks.set(command.taskId, applyCommand(current, command, account.identity.user.id, account.identity.timeZone, at)); }
     catch {
@@ -97,7 +102,8 @@ export async function acknowledge(id: string, mutationId: string, task: Task): P
   await updateAccount(id, account => {
     if (!account.pending.some(p => p.command.mutationId === mutationId)) return;
     account.pending = account.pending.filter(p => p.command.mutationId !== mutationId);
-    account.base = account.base.filter(t => t.id !== task.id).concat(task);
+    const previous = account.base.find(value => value.id === task.id);
+    if (!previous || previous.version <= task.version) account.base = account.base.filter(t => t.id !== task.id).concat(task);
   });
 }
 export async function mergeSnapshot(id: string, tasks: Task[]): Promise<void> {
@@ -105,7 +111,7 @@ export async function mergeSnapshot(id: string, tasks: Task[]): Promise<void> {
     const pendingIds = new Set(account.pending.map(p => p.command.taskId));
     const base = new Map(account.base.map(t => [t.id, t]));
     for (const task of tasks) {
-      if (!pendingIds.has(task.id) && (!base.has(task.id) || base.get(task.id)!.version <= task.version)) base.set(task.id, task);
+      if ((!pendingIds.has(task.id) || task.deletedAt !== undefined) && (!base.has(task.id) || base.get(task.id)!.version <= task.version)) base.set(task.id, task);
     }
     account.base = [...base.values()];
     account.lastSync = Date.now();
@@ -115,6 +121,7 @@ export async function resolveConflict(id: string, taskId: string, choice: 'cloud
   await updateAccount(id, account => {
     const conflict = account.conflicts[taskId];
     if (!conflict) return;
+    if (choice === 'local' && conflict.current?.deletedAt !== undefined) throw new Error('任务已在云端删除，请采用云端；如有需要请另行新建任务');
     const localTask = materialize(account).find(t => t.id === taskId);
     const old = account.pending.filter(p => p.command.taskId === taskId);
     account.pending = account.pending.filter(p => p.command.taskId !== taskId);
@@ -141,17 +148,41 @@ export async function resolveConflict(id: string, taskId: string, choice: 'cloud
 }
 export function materializePlanner(account: Account): PlannerData {
   let planner = structuredClone(normalizePlanner(account.plannerBase ?? emptyPlanner()));
+  const protectDeleted = (next: PlannerData, source: PlannerData) => {
+    const wishes = new Map(next.wishes.map(value => [value.id, value]));
+    const recipes = new Map(next.recipes.map(value => [value.id, value]));
+    for (const value of source.wishes) if (value.deletedAt !== undefined) wishes.set(value.id, value);
+    for (const value of source.recipes) if (value.deletedAt !== undefined) recipes.set(value.id, value);
+    return { ...next, wishes: [...wishes.values()], recipes: [...recipes.values()] };
+  };
+  if (account.plannerConflict) planner = protectDeleted(planner, normalizePlanner(account.plannerConflict.current));
   for (const pending of account.plannerPending ?? []) {
     try { planner = applyPlannerCommand(planner, pending.command, account.identity.user.id, pending.at); }
-    catch { planner = structuredClone(normalizePlanner(pending.preview)); }
+    catch {
+      // An expired round must not be restored from an old optimistic snapshot.
+      if (!['wantRecipe', 'cancelRecipeWant', 'setRecipeEaten'].includes(pending.command.operation.type)) {
+        planner = protectDeleted({ ...structuredClone(normalizePlanner(pending.preview)), recipeRequests: planner.recipeRequests }, planner);
+      }
+    }
   }
+  planner.recipeRequests = normalizeRecipeRequests(account.plannerConflict
+    ? account.plannerConflict.current.recipeRequests ?? [] : planner.recipeRequests, planner.recipes);
+  const deletedTasks = new Set(materialize(account).filter(value => value.deletedAt !== undefined).map(value => value.id));
+  planner.schedules = planner.schedules.map(value => value.taskId && deletedTasks.has(value.taskId)
+    ? { ...value, taskId: null, occurrenceDate: null } : value);
   return planner;
 }
-export async function enqueuePlanner(id: string, operation: PlannerOperation): Promise<void> {
+export async function enqueuePlanner(id: string, operation: PlannerOperation, expectedVersion?: number): Promise<void> {
   await updateAccount(id, account => {
     if (account.plannerConflict) throw new Error('请先处理共享生活记录的同步冲突');
     const current = materializePlanner(account);
-    const command: PlannerCommand = { mutationId: crypto.randomUUID(), expectedVersion: current.version, operation };
+    if (operation.type === 'saveSchedule') {
+      const { taskId } = operation.draft;
+      if (taskId && materialize(account).some(task => task.id === taskId && task.deletedAt !== undefined)) {
+        operation = { ...operation, draft: { ...operation.draft, taskId: null, occurrenceDate: null } };
+      }
+    }
+    const command: PlannerCommand = { mutationId: crypto.randomUUID(), expectedVersion: expectedVersion ?? current.version, operation };
     const at = Date.now(), preview = applyPlannerCommand(current, command, id, at);
     account.plannerPending.push({ command, at, preview });
   });
@@ -160,7 +191,7 @@ export async function acknowledgePlanner(id: string, mutationId: string, planner
   await updateAccount(id, account => {
     if (!account.plannerPending.some(value => value.command.mutationId === mutationId)) return;
     account.plannerPending = account.plannerPending.filter(value => value.command.mutationId !== mutationId);
-    account.plannerBase = normalizePlanner(planner);
+    if (account.plannerBase.version <= planner.version) account.plannerBase = normalizePlanner(planner);
   });
 }
 export async function mergePlanner(id: string, planner: PlannerData): Promise<void> {
@@ -179,8 +210,30 @@ export async function resolvePlannerConflict(id: string, choice: 'cloud' | 'loca
     account.plannerConflict = null;
     if (choice === 'cloud') return;
     let current = structuredClone(conflict.current);
+    // Concurrent first requests can merge into the other device's round. Retarget
+    // later commands in this same outbox instead of referring to the lost ID.
+    const requestIds = new Map<string, string>();
     for (const pending of old) {
-      const command: PlannerCommand = { ...pending.command, mutationId: crypto.randomUUID(), expectedVersion: current.version };
+      let operation = pending.command.operation;
+      if (operation.type === 'wantRecipe') {
+        const { recipeId, requestId } = operation;
+        const existing = current.recipeRequests.find(value => value.id === requestId);
+        const active = current.recipeRequests.find(value => value.recipeId === recipeId && value.completedAt === null);
+        if (!existing && active) {
+          requestIds.set(requestId, active.id);
+          operation = { ...operation, requestId: active.id };
+        }
+      } else if (operation.type === 'cancelRecipeWant' || operation.type === 'setRecipeEaten') {
+        let requestId = operation.requestId;
+        while (requestIds.has(requestId)) requestId = requestIds.get(requestId)!;
+        operation = { ...operation, requestId };
+        if (operation.type === 'setRecipeEaten' && !operation.eaten) {
+          const previous = current.recipeRequests.find(value => value.id === requestId);
+          const active = current.recipeRequests.find(value => value.recipeId === previous?.recipeId && value.completedAt === null);
+          if (previous?.completedAt != null && active) requestIds.set(previous.id, active.id);
+        }
+      }
+      const command: PlannerCommand = { ...pending.command, operation, mutationId: crypto.randomUUID(), expectedVersion: current.version };
       const at = Date.now();
       current = applyPlannerCommand(current, command, id, at);
       account.plannerPending.push({ command, at, preview: current });

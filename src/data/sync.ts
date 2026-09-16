@@ -64,6 +64,16 @@ export function synchronize(id: string): Promise<void> {
           });
           break;
         }
+        if (error instanceof ApiFailure && error.status === 400) {
+          const snapshot = await api<{ planner: PlannerData }>('/api/v1/planner/snapshot');
+          await updateAccount(id, state => {
+            if (state.plannerPending.some(value => value.command.mutationId === command.mutationId)) {
+              state.plannerConflict = { current: snapshot.planner,
+                message: `${error.message}。本机操作已保留，请采用云端或处理冲突后重试。` };
+            }
+          });
+          break;
+        }
         throw error;
       }
     }

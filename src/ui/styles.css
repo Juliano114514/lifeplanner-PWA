@@ -1468,6 +1468,55 @@ input,select,textarea { accent-color:var(--accent-dark) }
 .home-profile.selected .task-checkbox { background:var(--accent-dark);border-color:var(--accent-dark);color:var(--on-accent);font-size:20px;line-height:1 }
 .egg-history-item { touch-action:pan-y;-webkit-touch-callout:none;user-select:none }
 
+/* Recipes keep the overview compact; details and editing live in the dialog. */
+.recipe-toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:12px }
+.recipe-tabs { flex-shrink:0 }
+.recipe-search { display:flex; flex:1 1 260px; min-width:0; gap:12px; align-items:center }
+.recipe-search input { flex:1; min-width:0 }
+.recipe-search button { flex-shrink:0 }
+.recipe-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:12px; align-items:start }
+.recipe-card { display:block; width:100%; min-width:0; padding:14px 16px; text-align:left; background:var(--paper); border:1px solid var(--line); border-radius:var(--radius-sm); color:var(--ink) }
+.recipe-card-content { display:block; min-width:0; width:100%; padding:0; text-align:left }
+.recipe-card-content>strong { display:block; margin-bottom:10px; font-size:17px; overflow-wrap:anywhere }
+.recipe-card-action { display:flex; justify-content:flex-end; margin-top:12px }
+.recipe-want-button { padding:6px 14px; min-height:40px; background:var(--surface-soft); color:var(--accent-dark) }
+.recipe-want-button.selected { background:var(--accent); color:var(--accent-deep) }
+.recipe-request-section { margin-top:24px }
+.recipe-request-card { display:grid; grid-template-columns:32px minmax(0,1fr) auto; gap:10px; align-items:start }
+.recipe-request-avatars { display:flex; flex-direction:column; gap:6px }
+.recipe-request-avatars .avatar { width:32px; height:32px; font-size:13px }
+.recipe-request-card .recipe-card-action { flex-direction:column; align-items:center; margin:0; gap:8px }
+.recipe-eaten-control { display:flex; flex-direction:column; align-items:center; gap:4px; margin:0; font-size:12px; cursor:pointer }
+.recipe-eaten-control .task-checkbox { margin:0 }
+.recipe-cancel-want { font-size:12px; padding:0; min-height:32px }
+.recipe-eaten-card { background:var(--canvas) }
+.recipe-material-group { display:flex; gap:10px; align-items:flex-start; margin-top:8px; min-width:0 }
+.recipe-material-label { flex:0 0 3em; font-size:13px; line-height:26px; color:var(--muted) }
+.recipe-tag-area { flex:1; min-width:0; position:relative }
+.recipe-tags { display:flex; flex-wrap:wrap; gap:6px; min-width:0; align-items:flex-start }
+.recipe-tag { display:inline-block; flex:0 1 auto; max-width:100%; padding:2px 8px; border-radius:8px; background:var(--surface-soft); border:1px solid var(--line); font-size:12px; line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.recipe-more { flex-shrink:0; color:var(--muted) }
+.recipe-tags-measure { position:absolute; width:100%; height:0; overflow:hidden; top:0; left:0; visibility:hidden; pointer-events:none }
+.recipe-detail .recipe-tag { white-space:normal; overflow-wrap:anywhere }
+.recipe-detail section { margin-top:24px }
+.recipe-steps { padding-left:24px }
+.recipe-steps li { padding-left:6px; margin-bottom:14px; white-space:pre-wrap; overflow-wrap:anywhere }
+.recipe-editor-fields { border:0; padding:0; margin:0; min-width:0 }
+.planner-dialog .recipe-material-editor, .planner-dialog .recipe-step-editor { border:1px solid var(--line); border-radius:var(--radius-sm); padding:12px; margin:16px 0; min-width:0 }
+.recipe-material-entries { display:grid; gap:8px }
+.recipe-material-entry { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; gap:8px; align-items:end; padding:10px; background:var(--surface-soft); border-radius:var(--radius-sm) }
+.recipe-material-entry label { min-width:0; margin:0; font-size:12px }
+.recipe-material-entry input { min-width:0; width:100% }
+.recipe-step-entry { margin-bottom:16px }
+.recipe-step-entry .actions { justify-content:flex-end }
+@media(max-width:640px) {
+  .recipe-toolbar .recipe-search { flex-basis:100% }
+  .recipe-card { padding:12px }
+  .recipe-request-card { gap:8px }
+  .recipe-material-entry { grid-template-columns:minmax(0,1fr) minmax(0,1fr) }
+  .recipe-material-entry>button { grid-column:2; justify-self:end }
+}
+
 /* Wishes share the task-card layout; long addresses must not squeeze the checkbox. */
 .wish-title-row { display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;min-width:0 }
 .wish-title-row .task-title,.wish-address { overflow-wrap:anywhere;min-width:0 }

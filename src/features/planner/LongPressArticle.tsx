@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
-export function LongPressArticle({ children, className, enabled, title, onDelete }: {
-  children: ReactNode; className: string; enabled: boolean; title: string; onDelete: () => void;
+export function LongPressArticle({ children, className, enabled, title, onDelete, deleteMessage }: {
+  children: ReactNode; className: string; enabled: boolean; title: string; onDelete: () => void; deleteMessage?: string;
 }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const start = useRef({ x: 0, y: 0 });
@@ -12,13 +12,14 @@ export function LongPressArticle({ children, className, enabled, title, onDelete
     cancel();
     if (!enabled || fired.current) return;
     fired.current = true;
-    if (window.confirm(`删除已归档的「${title}」？删除后无法恢复，将同步到其他设备。`)) onDelete();
+    if (window.confirm(deleteMessage ?? `删除「${title}」？删除后无法恢复，将同步到其他设备。`)) onDelete();
   }
   return <article className={`${className}${enabled ? ' long-press-delete' : ''}`} tabIndex={enabled ? 0 : undefined}
     aria-label={enabled ? `${title}，长按或按 Delete 删除` : undefined}
     onPointerDown={event => {
       cancel(); fired.current = false;
       if (!enabled || !event.isPrimary || event.button !== 0) return;
+      if (event.target instanceof Element && event.target.closest('button, input, a, summary')) return;
       start.current = { x: event.clientX, y: event.clientY };
       timer.current = setTimeout(confirmDelete, 600);
     }}

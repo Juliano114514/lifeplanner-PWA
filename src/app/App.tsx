@@ -13,6 +13,7 @@ const DiaryPage = lazy(() => import('../features/diary/DiaryPage').then(module =
 
 const WishesHome = lazy(() => import('../features/wishes/WishesPage').then(module => ({ default: module.WishesHome })));
 const WishesPage = lazy(() => import('../features/wishes/WishesPage').then(module => ({ default: module.WishesPage })));
+const RecipesPage = lazy(() => import('../features/recipes/RecipesPage').then(module => ({ default: module.RecipesPage })));
 
 const tabs = [
   { path: 'home', label: '首页', icon: '⌂' },
@@ -136,7 +137,7 @@ export function App() {
               <Route path="/schedule" element={<SchedulePage account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/diary" element={<DiaryPage account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/dishes" element={<Navigate to="/recipes" replace />} />
-              <Route path="/recipes" element={<WishesPage key="recipes" recipes account={account} sync={syncNow} onEditing={setEditing} />} />
+              <Route path="/recipes" element={<RecipesPage account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/wishes" element={<WishesHome />} />
               <Route path="/wishes/:kind" element={<WishesPage key={location.pathname} account={account} sync={syncNow} onEditing={setEditing} />} />
               <Route path="/inventory" element={<Navigate to="/recipes" replace />} />
