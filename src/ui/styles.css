@@ -349,10 +349,10 @@ main {
 .section-dot.urgent {
   background:var(--warning)
 }
-.section-dot.todayCompleted {
+.section-dot.completed {
   background:var(--muted)
 }
-.section-dot.others {
+.section-dot.allPending {
   background:var(--secondary)
 }
 .task-card,.content-card,.recipe-card,.period-planner article {

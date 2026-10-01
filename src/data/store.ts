@@ -1,6 +1,6 @@
 import { openDB, type DBSchema } from 'idb';
 import { profileSchema, type Command, type Identity, type Operation, type Task, type TaskDraft, type UserProfile } from '../../shared/contracts';
-import { applyCommand } from '../../shared/domain';
+import { applyCommand, completedTaskOverflow } from '../../shared/domain';
 import { applyPlannerCommand, emptyPlanner, normalizePlanner, type PlannerCommand, type PlannerData, type PlannerOperation } from '../../shared/planner';
 import { normalizeRecipeRequests } from '../../shared/recipe';
 
@@ -97,6 +97,20 @@ export async function enqueue(id: string, taskId: string, operation: Operation, 
     if (operation.type === 'ensure' && result.occurrences.length === current?.occurrences.length) return;
     account.pending.push({ command, at, preview: result });
   });
+}
+export async function archiveCompletedTasks(id: string): Promise<boolean> {
+  let changed = false;
+  await updateAccount(id, account => {
+    for (const task of completedTaskOverflow(materialize(account))) {
+      if (account.conflicts[task.id]) continue;
+      const command: Command = { mutationId: crypto.randomUUID(), taskId: task.id, expectedVersion: task.version, operation: { type: 'archive' } };
+      const at = Date.now();
+      const preview = applyCommand(task, command, id, account.identity.timeZone, at);
+      account.pending.push({ command, at, preview });
+      changed = true;
+    }
+  });
+  return changed;
 }
 export async function acknowledge(id: string, mutationId: string, task: Task): Promise<void> {
   await updateAccount(id, account => {

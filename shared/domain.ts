@@ -102,13 +102,29 @@ export function ensureOperation(date: string): Operation {
   return { type: 'ensure', start: addMonths(date, -1), end: addMonths(date, 1) };
 }
 export interface TodoItem { task: Task; occurrence?: Occurrence }
-export interface Overview { urgent: TodoItem[]; todayPending: TodoItem[]; todayCompleted: TodoItem[]; others: TodoItem[] }
+export const COMPLETED_TASK_LIMIT = 30;
+export interface Overview { urgent: TodoItem[]; todayPending: TodoItem[]; allPending: TodoItem[]; completed: TodoItem[] }
 const nullableNumber = (a: number | null | undefined, b: number | null | undefined) =>
   a == null ? (b == null ? 0 : -1) : b == null ? 1 : a - b;
 
-// Same branch priority and null ordering as Android TodoOrganizer.
+export function completedTasks(tasks: Task[]): TodoItem[] {
+  return tasks.filter(task => task.deletedAt === undefined && !task.isArchived
+    && !task.occurrences.some(occurrence => occurrence.status === 'PENDING'))
+    .map(task => ({ task, occurrence: task.occurrences.filter(occurrence => occurrence.status === 'COMPLETED')
+      .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))[0] }))
+    .filter(item => item.occurrence !== undefined)
+    .sort((a, b) => (b.occurrence?.completedAt ?? 0) - (a.occurrence?.completedAt ?? 0)
+      || a.task.id.localeCompare(b.task.id));
+}
+
+export function completedTaskOverflow(tasks: Task[]): Task[] {
+  // Archive whole tasks only when they cannot generate future recurring work.
+  return completedTasks(tasks).slice(COMPLETED_TASK_LIMIT).filter(item => !item.task.recurrence).map(item => item.task);
+}
+
+// Preserve the existing priority and ordering for pinned/near-due and today's work.
 export function organize(tasks: Task[], date: string, zone: string): Overview {
-  const groups: Overview = { urgent: [], todayPending: [], todayCompleted: [], others: [] };
+  const groups: Overview = { urgent: [], todayPending: [], allPending: [], completed: completedTasks(tasks).slice(0, COMPLETED_TASK_LIMIT) };
   const urgentEnd = addDays(date, 15);
   for (const task of tasks.filter(t => t.deletedAt === undefined && !t.isArchived).sort((a, b) => b.createdAt - a.createdAt)) {
     const related = task.occurrences;
@@ -118,18 +134,14 @@ export function organize(tasks: Task[], date: string, zone: string): Overview {
       return task.isPinned || (due !== null && today(zone, due) <= urgentEnd);
     }).sort((a, b) => nullableNumber(a.dueAt, b.dueAt) || a.plannedDate.localeCompare(b.plannedDate))[0];
     const pendingToday = pending.find(o => o.plannedDate === date);
-    const completedToday = related.find(o => o.plannedDate === date && o.status === 'COMPLETED');
     if (urgent) groups.urgent.push({ task, occurrence: urgent });
     else if (pendingToday) groups.todayPending.push({ task, occurrence: pendingToday });
-    else if (completedToday) groups.todayCompleted.push({ task, occurrence: completedToday });
-    else groups.others.push({ task, occurrence: pending.find(o => o.plannedDate >= date) ?? pending[0]
-      ?? related.filter(o => o.status === 'COMPLETED').sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))[0] });
+    if (pending.length) groups.allPending.push({ task, occurrence: pending.find(o => o.plannedDate >= date) ?? pending[0] });
   }
   groups.urgent.sort((a, b) => nullableNumber(a.occurrence?.dueAt ?? a.task.dueAt, b.occurrence?.dueAt ?? b.task.dueAt)
     || (a.task.title < b.task.title ? -1 : a.task.title > b.task.title ? 1 : 0));
   groups.todayPending.sort((a, b) => nullableNumber(a.occurrence?.dueAt, b.occurrence?.dueAt));
-  groups.todayCompleted.sort((a, b) => nullableNumber(b.occurrence?.completedAt, a.occurrence?.completedAt));
-  groups.others.sort((a, b) => {
+  groups.allPending.sort((a, b) => {
     const left = a.occurrence?.plannedDate ?? '', right = b.occurrence?.plannedDate ?? '';
     return left.localeCompare(right) || (a.task.title < b.task.title ? -1 : a.task.title > b.task.title ? 1 : 0);
   });

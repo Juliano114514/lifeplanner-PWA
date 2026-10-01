@@ -2,15 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Operation, Task } from '../../../shared/contracts';
 import type { ScheduleBlock } from '../../../shared/planner';
-import { ensureOperation, localDateTime, needsEnsure, organize, today } from '../../../shared/domain';
-import { enqueue, enqueuePlanner, loadDraft, materialize, materializePlanner, resolveConflict, type Account, type EditorDraft } from '../../data/store';
+import { completedTaskOverflow, ensureOperation, localDateTime, needsEnsure, organize, today } from '../../../shared/domain';
+import { archiveCompletedTasks, enqueue, enqueuePlanner, loadDraft, materialize, materializePlanner, resolveConflict, type Account, type EditorDraft } from '../../data/store';
 import { Badge, formatMinute, PageHeading } from '../planner/PlannerUi';
 import { TaskEditor } from './TaskEditor';
 import { LongPressArticle } from '../planner/LongPressArticle';
 
-const groupNames = { urgent: '置顶 / 临近15天', todayPending: '今日未完成', todayCompleted: '今日已完成', others: '其他任务' };
+const groupNames = { urgent: '置顶 / 临近15天', todayPending: '今日未完成', allPending: '所有未完成', completed: '已完成' };
 const recurrenceNames = { DAILY: '每日', WEEKLY: '每周', MONTHLY: '每月' };
-const groupKeys = ['urgent', 'todayPending', 'todayCompleted', 'others'] as const;
+const groupKeys = ['urgent', 'todayPending', 'allPending', 'completed'] as const;
 const deleteMessage = (task: Task) => `删除「${task.title}」${task.recurrence ? '整个循环任务及其所有实例记录' : ''}？删除后无法恢复，将同步到其他设备。已安排的日程将保留为独立日程。`;
 function TaskSummary({ task, zone, name }: { task: Task | null; zone: string; name: (id: string) => string }) {
   if (!task) return <p>云端尚无此任务。</p>;
@@ -31,7 +31,9 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
   const [error, setError] = useState('');
   const tasks = useMemo(() => materialize(account), [account]);
   const visible = tasks.filter(t => t.deletedAt === undefined && (filter === 'all' || (filter === 'mine' ? t.ownerId === userId : t.ownerId !== userId)));
-  const groups = organize(visible, date, zone);
+  const visibleIds = new Set(visible.map(task => task.id));
+  const groups = organize(tasks, date, zone);
+  for (const key of groupKeys) groups[key] = groups[key].filter(item => visibleIds.has(item.task.id));
   const ownerName = (id: string) => identity.members.find(m => m.id === id)?.name ?? '成员';
   const ownerAvatar = (id: string) => (id === userId ? account.profile : identity.members.find(m => m.id === id)?.profile)?.avatar;
   const schedules = materializePlanner(account).schedules.filter(value => value.date === date && !value.isArchived);
@@ -58,6 +60,11 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
     void generate().catch(e => setError(e instanceof Error ? e.message : '任务实例生成失败'));
     return () => { cancelled = true; };
   }, [tasks, account.conflicts, date, userId, sync]);
+  useEffect(() => {
+    if (!completedTaskOverflow(tasks).some(task => !account.conflicts[task.id])) return;
+    void archiveCompletedTasks(userId).then(changed => { if (changed) sync(); })
+      .catch(reason => setError(reason instanceof Error ? reason.message : '自动归档失败'));
+  }, [tasks, account.conflicts, userId, sync]);
 
   async function act(taskId: string, operation: Operation) {
     try { await enqueue(userId, taskId, operation, tasks.find(task => task.id === taskId)?.version); setError(''); sync(); }
@@ -110,11 +117,12 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
         <details className="task-details"><summary>操作与记录</summary><div className="actions"><button className="danger-text" disabled={!!account.conflicts[t.id]} onClick={() => { if (window.confirm(deleteMessage(t))) void act(t.id, { type: 'delete' }); }}>删除</button></div></details>
       </div></LongPressArticle>)}
       {!visible.some(t => t.isArchived) && <p className="empty">还没有归档的任务。</p>}</section>
-      : groupKeys.map(key => <div className="task-group" key={key}>{key === 'todayCompleted' && pendingSchedules.length > 0 && <section className="task-section"><div className="section-heading"><h2>今日日程</h2><span>{pendingSchedules.length}</span></div>
+      : groupKeys.map(key => <div className="task-group" key={key}>{key === 'allPending' && pendingSchedules.length > 0 && <section className="task-section"><div className="section-heading"><h2>今日日程</h2><span>{pendingSchedules.length}</span></div>
         {pendingSchedules.map(scheduleCard)}</section>}
         <section className="task-section">
         <div className="section-heading"><h2><span className={`section-dot ${key}`} />{groupNames[key]}</h2><span>{groups[key].length.toString().padStart(2, '0')}</span></div>
-        {key === 'todayCompleted' && completedSchedules.map(scheduleCard)}
+        {key === 'completed' && completedSchedules.map(scheduleCard)}
+        {key === 'completed' && <p className="hint">保留最近 30 条已完成任务，其余自动归档；快速规划日程不参与自动归档。</p>}
         {groups[key].map(({ task, occurrence }) => <article className={`task-card planned-task-card ${occurrence?.status === 'COMPLETED' ? 'is-done' : ''}`} key={task.id}>
           <div className="task-overview">
           <span className="avatar task-avatar" aria-hidden="true">{ownerAvatar(task.ownerId) ? <img src={ownerAvatar(task.ownerId)} alt="" /> : ownerName(task.ownerId).slice(0, 1)}</span>
@@ -144,7 +152,7 @@ export function TasksPage({ account, sync, onEditing }: { account: Account; sync
                 <button className="text-button" onClick={() => void act(task.id, { type: 'status', date: o.plannedDate, status: 'PENDING' })}>恢复待办</button></div>)}
             </details></div>
         </article>)}
-        {!groups[key].length && !(key === 'todayCompleted' && completedSchedules.length) && <p className="empty">{key === 'todayCompleted' ? '完成的小事，会在这里慢慢积累。' : '这里暂时没有安排，留一点空白也很好。'}</p>}
+        {!groups[key].length && !(key === 'completed' && completedSchedules.length) && <p className="empty">{key === 'completed' ? '还没有已完成的任务。' : '暂无未完成任务。'}</p>}
       </section></div>)}
     <button className="primary mobile-add" onClick={() => edit()}>＋ 新增任务</button>
     {editor && <TaskEditor key={editor.taskId} identity={identity} initial={editor} onClose={() => setEditor(null)} onSaved={sync} />}
